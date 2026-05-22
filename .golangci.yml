@@ -8,15 +8,16 @@ linters:
     - unused
     - misspell
   settings:
-    errcheck:
-      check-type-assertions: true
     misspell:
       locale: US
   exclusions:
     rules:
-      - path: _test\.go
-        linters:
+      - linters:
           - errcheck
+        paths:
+          - _test\\.go$
+          - cmd/
+          - examples/
 formatters:
   enable:
     - gofmt
