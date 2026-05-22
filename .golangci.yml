@@ -12,12 +12,15 @@ linters:
       locale: US
   exclusions:
     rules:
-      - linters:
+      - path: _test\.go$
+        linters:
           - errcheck
-        paths:
-          - _test\\.go$
-          - cmd/
-          - examples/
+      - path: cmd/
+        linters:
+          - errcheck
+      - path: examples/
+        linters:
+          - errcheck
 formatters:
   enable:
     - gofmt
