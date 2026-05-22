@@ -16,10 +16,10 @@ linters:
       - std-error-handling
       - common-false-positives
     paths:
-      - ".*_test\.go$"
-      - "cmd/"
-      - "examples/"
-      - "benchmarks/"
+      - '.*_test\.go$'
+      - cmd/
+      - examples/
+      - benchmarks/
 formatters:
   enable:
     - gofmt
