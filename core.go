@@ -12,7 +12,7 @@ import (
 
 const (
 	// TracerName is the default instrumentation name.
-	TracerName = "github.com/atop0914/gollm"
+	TracerName = "github.com/atop0914/llmtrace"
 
 	// GenAI semantic convention attribute keys (OTel GenAI semconv).
 	AttrGenAISystem          = "gen_ai.system"

@@ -1,17 +1,17 @@
-// Package gollm provides OpenTelemetry-native observability for LLM calls.
+// Package llmtrace provides OpenTelemetry-native observability for LLM calls.
 //
-// gollm wraps LLM client calls with OpenTelemetry spans, capturing
+// llmtrace wraps LLM client calls with OpenTelemetry spans, capturing
 // token usage, latency, cost, and request/response metadata following
 // the OpenTelemetry GenAI semantic conventions.
 //
 // Usage:
 //
-//	tracer := gollm.NewTracer("my-service")
-//	resp, err := tracer.Chat(ctx, &gollm.Request{
+//	tracer := llmtrace.NewTracer("my-service")
+//	resp, err := tracer.Chat(ctx, &llmtrace.Request{
 //	    Model:    "gpt-4",
-//	    Messages: []gollm.Message{{Role: "user", Content: "Hello"}},
+//	    Messages: []llmtrace.Message{{Role: "user", Content: "Hello"}},
 //	}, openai.Complete)
-package gollm
+package llmtrace
 
 import (
 	"context"
@@ -89,7 +89,7 @@ type Usage struct {
 	TotalTokens  int
 }
 
-// CompleteFunc is the actual LLM API call function that gollm wraps.
+// CompleteFunc is the actual LLM API call function that llmtrace wraps.
 // It takes a context and request, returns a response.
 // Providers implement this to make the real API call.
 type CompleteFunc func(ctx context.Context, req *Request) (*Response, error)

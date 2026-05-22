@@ -1,8 +1,8 @@
-# GoLLM
+# LLMTrace
 
 **OpenTelemetry-native LLM Observability SDK for Go**
 
-GoLLM wraps LLM client calls with OpenTelemetry spans, capturing token usage, latency, cost, and request/response metadata — following the [OTel GenAI semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/).
+LLMTrace wraps LLM client calls with OpenTelemetry spans, capturing token usage, latency, cost, and request/response metadata — following the [OTel GenAI semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/).
 
 ## Features
 
@@ -16,18 +16,18 @@ GoLLM wraps LLM client calls with OpenTelemetry spans, capturing token usage, la
 
 ```go
 import (
-    "github.com/atop0914/gollm"
-    "github.com/atop0914/gollm/provider/openai"
+    "github.com/atop0914/llmtrace"
+    "github.com/atop0914/llmtrace/provider/openai"
 )
 
-tracer := gollm.NewTracer("my-service",
-    gollm.WithProvider("openai"),
-    gollm.WithCostCalculator(gollm.NewCostCalculator()),
+tracer := llmtrace.NewTracer("my-service",
+    llmtrace.WithProvider("openai"),
+    llmtrace.WithCostCalculator(llmtrace.NewCostCalculator()),
 )
 
-resp, err := tracer.Complete(ctx, &gollm.Request{
+resp, err := tracer.Complete(ctx, &llmtrace.Request{
     Model:    "gpt-4o",
-    Messages: []gollm.Message{{Role: "user, Content: "Hello!"}},
+    Messages: []llmtrace.Message{{Role: "user, Content: "Hello!"}},
 }, openai.Complete)
 ```
 

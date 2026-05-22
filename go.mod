@@ -1,4 +1,4 @@
-module github.com/atop0914/gollm
+module github.com/atop0914/llmtrace
 
 go 1.22.0
 
