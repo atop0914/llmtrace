@@ -1,4 +1,4 @@
-package gollm
+package llmtrace
 
 // Option configures a Tracer.
 type Option func(*Tracer)
