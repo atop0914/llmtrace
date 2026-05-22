@@ -19,5 +19,5 @@ func Get() Info {
 }
 
 func (i Info) String() string {
-	return fmt.Sprintf("gollm %s (commit: %s, built: %s)", i.Version, i.GitCommit, i.BuildDate)
+	return fmt.Sprintf("llmtrace %s (commit: %s, built: %s)", i.Version, i.GitCommit, i.BuildDate)
 }

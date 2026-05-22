@@ -110,10 +110,12 @@ func (t *Tracer) Stream(ctx context.Context, req *Request, fn StreamFunc) (<-cha
 		defer span.End()
 		defer close(out)
 		var lastChunk StreamChunk
+		var hasError bool
 		for chunk := range ch {
 			if chunk.Error != nil {
 				span.RecordError(chunk.Error)
 				span.SetStatus(codes.Error, chunk.Error.Error())
+				hasError = true
 			}
 			lastChunk = chunk
 			out <- chunk
@@ -129,7 +131,9 @@ func (t *Tracer) Stream(ctx context.Context, req *Request, fn StreamFunc) (<-cha
 			}
 			t.setResponseAttrs(span, resp, latency)
 		}
-		span.SetStatus(codes.Ok, "")
+		if !hasError {
+			span.SetStatus(codes.Ok, "")
+		}
 	}()
 
 	return out, nil
