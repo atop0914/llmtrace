@@ -15,19 +15,19 @@ const (
 	TracerName = "github.com/atop0914/llmtrace"
 
 	// GenAI semantic convention attribute keys (OTel GenAI semconv).
-	AttrGenAISystem          = "gen_ai.system"
-	AttrGenAIOperationName   = "gen_ai.operation.name"
-	AttrGenAIRequestModel    = "gen_ai.request.model"
-	AttrGenAIResponseModel   = "gen_ai.response.model"
-	AttrGenAIRequestTemp     = "gen_ai.request.temperature"
-	AttrGenAIRequestTopP     = "gen_ai.request.top_p"
-	AttrGenAIRequestMaxTok   = "gen_ai.request.max_tokens"
-	AttrGenAIResponseID      = "gen_ai.response.id"
-	AttrGenAIFinishReasons   = "gen_ai.response.finish_reasons"
-	AttrGenAIInputTokens     = "gen_ai.usage.input_tokens"
-	AttrGenAIOutputTokens    = "gen_ai.usage.output_tokens"
-	AttrGenAITotalTokens     = "gen_ai.usage.total_tokens"
-	AttrGenAICostUSD         = "gen_ai.usage.cost_usd"
+	AttrGenAISystem        = "gen_ai.system"
+	AttrGenAIOperationName = "gen_ai.operation.name"
+	AttrGenAIRequestModel  = "gen_ai.request.model"
+	AttrGenAIResponseModel = "gen_ai.response.model"
+	AttrGenAIRequestTemp   = "gen_ai.request.temperature"
+	AttrGenAIRequestTopP   = "gen_ai.request.top_p"
+	AttrGenAIRequestMaxTok = "gen_ai.request.max_tokens"
+	AttrGenAIResponseID    = "gen_ai.response.id"
+	AttrGenAIFinishReasons = "gen_ai.response.finish_reasons"
+	AttrGenAIInputTokens   = "gen_ai.usage.input_tokens"
+	AttrGenAIOutputTokens  = "gen_ai.usage.output_tokens"
+	AttrGenAITotalTokens   = "gen_ai.usage.total_tokens"
+	AttrGenAICostUSD       = "gen_ai.usage.cost_usd"
 )
 
 // Tracer wraps LLM calls with OpenTelemetry spans.
@@ -121,10 +121,10 @@ func (t *Tracer) Stream(ctx context.Context, req *Request, fn StreamFunc) (<-cha
 		latency := time.Since(start)
 		if lastChunk.Usage != nil {
 			resp := &Response{
-				Model:       req.Model,
-				Usage:       *lastChunk.Usage,
-				Latency:     latency,
-				Provider:    t.provider,
+				Model:        req.Model,
+				Usage:        *lastChunk.Usage,
+				Latency:      latency,
+				Provider:     t.provider,
 				FinishReason: "stop",
 			}
 			t.setResponseAttrs(span, resp, latency)
