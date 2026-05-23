@@ -305,6 +305,9 @@ func TestTracer_Stream_ChunkError(t *testing.T) {
 	for range ch {
 	}
 
+	// Wait for the goroutine to finish and export the span
+	time.Sleep(50 * time.Millisecond)
+
 	spans := exporter.GetSpans()
 	if len(spans) != 1 {
 		t.Fatalf("got %d spans, want 1", len(spans))
