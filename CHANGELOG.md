@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.0] - 2026-05-25
+
+### Added
+- Gemini provider implementation (`provider/gemini/`)
+  - generateContent API with full request/response mapping
+  - SSE streaming support via streamGenerateContent
+  - System instruction handling (separate from message contents)
+  - Assistant→model role mapping for Gemini's API format
+  - 16 comprehensive tests with httptest mock server
+
+## [0.3.0] - 2026-05-24
+
+### Added
+- Provider interface (`provider.go`) with Name, Complete, Stream, DefaultModel, SupportsStreaming
+- ProviderConfig with functional options (WithAPIKey, WithBaseURL, WithModel, WithMaxRetries, WithExtra)
+- OpenAI provider (`provider/openai/`) — Chat Completions API with SSE streaming
+- Anthropic provider (`provider/anthropic/`) — Messages API with SSE streaming
+- Comprehensive provider tests (15 OpenAI tests, 15 Anthropic tests)
+
 ## [0.2.0] - 2026-05-22
 
 ### Added
