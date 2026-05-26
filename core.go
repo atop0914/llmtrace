@@ -107,8 +107,8 @@ func (t *Tracer) Stream(ctx context.Context, req *Request, fn StreamFunc) (<-cha
 	// Wrap channel to capture final usage and end span
 	out := make(chan StreamChunk)
 	go func() {
-		defer span.End()
 		defer close(out)
+		defer span.End()
 		var lastChunk StreamChunk
 		var hasError bool
 		for chunk := range ch {
