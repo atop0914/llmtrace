@@ -2,6 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.0] - 2026-05-26
+
+### Added
+- **Retry with exponential backoff** (`retry.go`)
+  - `RetryConfig` with configurable max retries, initial interval, max interval, multiplier, and jitter
+  - `WithRetry()` and `WithRetryResult()` generic retry functions
+  - `RetryableError` type to mark errors as retryable
+  - `IsTransientError()` detects 429/5xx status codes and retryable errors
+  - Context cancellation support during retry delays
+- **Middleware pattern** (`middleware.go`)
+  - `Middleware` type wraps `CompleteFunc` for request/response interceptors
+  - `StreamMiddleware` type wraps `StreamFunc` for streaming interceptors
+  - `Chain()` and `ChainStream()` compose multiple middlewares
+  - `WithCompleteHook()` middleware for post-request callbacks
+  - `WithTiming()` middleware for duration tracking
+- **Chat convenience methods** (`chat.go`)
+  - `Tracer.Chat()` accepts a `Provider` directly instead of `CompleteFunc`
+  - `Tracer.ChatStream()` accepts a `Provider` directly instead of `StreamFunc`
+  - `ChatOption` functional options: `WithCallRetry()`, `WithCallMiddleware()`
+- **Examples directory** (`examples/basic/`)
+  - Full usage demo with provider, cost tracking, retry, and hooks
+- Comprehensive tests for retry, middleware, and chat (30+ new test cases)
+
+### Fixed
+- Stream() defer order: `span.End()` now runs before `close(out)` for reliable span export
+
 ## [0.4.0] - 2026-05-25
 
 ### Added
