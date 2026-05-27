@@ -11,6 +11,7 @@ LLMTrace wraps LLM client calls with OpenTelemetry spans, capturing token usage,
 - **Cost tracking** — automatic USD cost calculation per request
 - **Streaming support** — trace SSE streaming responses
 - **Retry with backoff** — configurable exponential backoff for transient errors
+- **Rate limiting** — token bucket rate limiter for API call throttling
 - **Middleware pattern** — add logging, hooks, and custom interceptors
 - **Zero-config defaults** — works out of the box with sensible defaults
 
@@ -79,6 +80,38 @@ ch, err := tracer.ChatStream(ctx, &llmtrace.Request{
 
 for chunk := range ch {
     fmt.Print(chunk.Content)
+}
+```
+
+## Rate Limiting
+
+Control API call rates with the token bucket rate limiter:
+
+```go
+// Create a limiter: 10 requests/second, burst of 20
+lim := llmtrace.NewLimiter(10, 20)
+
+// Use as middleware
+resp, err := tracer.Chat(ctx, req, provider,
+    llmtrace.WithCallMiddleware(llmtrace.WithRateLimit(lim)),
+)
+
+// Or use the ChatOption shorthand
+resp, err := tracer.Chat(ctx, req, provider,
+    llmtrace.WithCallRateLimit(llmtrace.RateLimitConfig{
+        Rate:  10,  // 10 requests per second
+        Burst: 20,  // burst up to 20
+    }),
+)
+
+// Non-blocking check
+if lim.Allow() {
+    // proceed immediately
+}
+
+// Blocking wait with context
+if err := lim.Wait(ctx); err != nil {
+    // context canceled or rate limit exceeded
 }
 ```
 

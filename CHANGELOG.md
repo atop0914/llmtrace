@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.0] - 2026-05-27
+
+### Added
+- **Rate limiter middleware** (`ratelimit.go`)
+  - `Limiter` struct with token bucket algorithm (configurable rate and burst)
+  - `NewLimiter(rate float64, burst int)` creates a new rate limiter
+  - `Allow()` / `AllowN()` for non-blocking token checks
+  - `Wait()` / `WaitN()` for blocking token acquisition with context support
+  - `WithRateLimit()` middleware for completion calls
+  - `WithStreamRateLimit()` middleware for streaming calls
+  - `WithCallRateLimit()` ChatOption for easy integration with Chat/ChatStream
+  - `ErrRateLimitExceeded` error when rate limit cannot be satisfied
+  - Thread-safe implementation with proper token refill logic
+  - 20 comprehensive tests including concurrent access and context cancellation
+
 ## [0.5.0] - 2026-05-26
 
 ### Added
