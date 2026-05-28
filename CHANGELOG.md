@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.7.0] - 2026-05-28
+
+### Added
+- **Unified error types** (`errors.go`)
+  - `ProviderError` struct with Provider, StatusCode, Code, Message, Type fields
+  - `ErrorType` classification: auth, rate_limit, invalid_request, server_error, timeout, quota_exceeded, model_not_found, context_length
+  - Sentinel errors: `ErrRateLimit`, `ErrAuth`, `ErrInvalidRequest`, `ErrServerError`, `ErrTimeout`, `ErrQuotaExceeded`, `ErrModelNotFound`, `ErrContextLengthExceeded`
+  - Helper functions: `IsRateLimit()`, `IsAuthError()`, `IsServerError()`, `IsInvalidRequest()`, `IsTransient()`, `IsProviderError()`
+  - `ClassifyHTTPStatus()` maps HTTP status codes to error types
+  - `NewProviderError()` auto-classifies errors from status codes
+- **Cross-provider integration tests** (`provider/provider_test.go`)
+  - `TestProvider_InterfaceCompliance` — verifies all providers implement the interface
+  - `TestProvider_CompleteRoundTrip` — end-to-end test with mock servers
+  - `TestProvider_ErrorHandling` — consistent error behavior across providers
+  - `TestProvider_EmptyMessages` — edge case handling
+  - `TestProvider_ConcurrentRequests` — thread-safety verification
+- 25+ new tests for error classification and provider integration
+
 ## [0.6.0] - 2026-05-27
 
 ### Added
