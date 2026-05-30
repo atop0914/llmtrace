@@ -22,5 +22,5 @@ type metricsHandler struct {
 func (h *metricsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(h.registry.WritePrometheus()))
+	_, _ = w.Write([]byte(h.registry.WritePrometheus()))
 }

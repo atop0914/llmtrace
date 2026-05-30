@@ -115,14 +115,14 @@ func (p *Provider) SupportsStreaming() bool { return true }
 // --- Request/Response types matching Anthropic's API format ---
 
 type messagesRequest struct {
-	Model         string         `json:"model"`
-	Messages      []chatMessage  `json:"messages"`
-	MaxTokens     int            `json:"max_tokens"`
-	System        string         `json:"system,omitempty"`
-	Temperature   *float64       `json:"temperature,omitempty"`
-	TopP          *float64       `json:"top_p,omitempty"`
-	StopSequences []string       `json:"stop_sequences,omitempty"`
-	Stream        bool           `json:"stream,omitempty"`
+	Model         string        `json:"model"`
+	Messages      []chatMessage `json:"messages"`
+	MaxTokens     int           `json:"max_tokens"`
+	System        string        `json:"system,omitempty"`
+	Temperature   *float64      `json:"temperature,omitempty"`
+	TopP          *float64      `json:"top_p,omitempty"`
+	StopSequences []string      `json:"stop_sequences,omitempty"`
+	Stream        bool          `json:"stream,omitempty"`
 }
 
 type chatMessage struct {
@@ -131,11 +131,11 @@ type chatMessage struct {
 }
 
 type messagesResponse struct {
-	ID         string          `json:"id"`
-	Model      string          `json:"model"`
-	Content    []contentBlock  `json:"content"`
-	StopReason string          `json:"stop_reason"`
-	Usage      usageResponse   `json:"usage"`
+	ID         string         `json:"id"`
+	Model      string         `json:"model"`
+	Content    []contentBlock `json:"content"`
+	StopReason string         `json:"stop_reason"`
+	Usage      usageResponse  `json:"usage"`
 }
 
 type contentBlock struct {

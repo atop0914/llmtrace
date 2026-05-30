@@ -254,8 +254,8 @@ func (r *Registry) prefixedName(name string) string {
 
 // CounterVec is a set of counters with the same name but different label values.
 type CounterVec struct {
-	registry  *Registry
-	name      string
+	registry   *Registry
+	name       string
 	labelNames []string
 }
 

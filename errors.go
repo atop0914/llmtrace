@@ -72,8 +72,8 @@ const (
 	ErrorTypeTimeout        ErrorType = "timeout"
 	ErrorTypeQuotaExceeded  ErrorType = "quota_exceeded"
 	ErrorTypeModelNotFound  ErrorType = "model_not_found"
-	ErrorTypeContextLength   ErrorType = "context_length"
-	ErrorTypeUnknown         ErrorType = "unknown"
+	ErrorTypeContextLength  ErrorType = "context_length"
+	ErrorTypeUnknown        ErrorType = "unknown"
 )
 
 func (e *ProviderError) Error() string {

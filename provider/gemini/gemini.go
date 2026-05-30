@@ -112,8 +112,8 @@ func (p *Provider) SupportsStreaming() bool { return true }
 // --- Request/Response types matching Gemini's API format ---
 
 type generateRequest struct {
-	Contents         []content         `json:"contents"`
-	GenerationConfig *generationConfig `json:"generationConfig,omitempty"`
+	Contents          []content          `json:"contents"`
+	GenerationConfig  *generationConfig  `json:"generationConfig,omitempty"`
 	SystemInstruction *systemInstruction `json:"systemInstruction,omitempty"`
 }
 
@@ -144,9 +144,9 @@ type generateResponse struct {
 }
 
 type candidate struct {
-	Content      content  `json:"content"`
-	FinishReason string   `json:"finishReason"`
-	Index        int      `json:"index"`
+	Content      content `json:"content"`
+	FinishReason string  `json:"finishReason"`
+	Index        int     `json:"index"`
 }
 
 type usageMetadata struct {
@@ -158,7 +158,7 @@ type usageMetadata struct {
 // --- Streaming types ---
 
 type streamChunk struct {
-	Candidates    []candidate   `json:"candidates,omitempty"`
+	Candidates    []candidate    `json:"candidates,omitempty"`
 	UsageMetadata *usageMetadata `json:"usageMetadata,omitempty"`
 }
 
@@ -177,7 +177,7 @@ func (p *Provider) buildGenerateURL(model string, stream bool) string {
 	if stream {
 		action = "streamGenerateContent?alt=sse"
 	}
-	return fmt.Sprintf("%s/%s/models/%s:%s&key=%s", p.baseURL, apiVersion, model, action, p.apiKey)
+	return fmt.Sprintf("%s/%s/models/%s:%s?key=%s", p.baseURL, apiVersion, model, action, p.apiKey)
 }
 
 // Complete makes a non-streaming generateContent request.
@@ -193,7 +193,7 @@ func (p *Provider) Complete(ctx context.Context, req *llmtrace.Request) (*llmtra
 		return nil, fmt.Errorf("gemini: marshal request: %w", err)
 	}
 
-	url := fmt.Sprintf("%s/%s/models/%s:generateContent?key=%s", p.baseURL, apiVersion, model, p.apiKey)
+	url := p.buildGenerateURL(model, false)
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("gemini: create request: %w", err)
@@ -246,7 +246,7 @@ func (p *Provider) Stream(ctx context.Context, req *llmtrace.Request) (<-chan ll
 		return nil, fmt.Errorf("gemini: marshal request: %w", err)
 	}
 
-	url := fmt.Sprintf("%s/%s/models/%s:streamGenerateContent?alt=sse&key=%s", p.baseURL, apiVersion, model, p.apiKey)
+	url := p.buildGenerateURL(model, true)
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("gemini: create request: %w", err)

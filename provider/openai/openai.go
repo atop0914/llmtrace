@@ -42,11 +42,11 @@ const (
 
 // Provider implements llmtrace.Provider for OpenAI's Chat Completions API.
 type Provider struct {
-	apiKey      string
-	baseURL     string
+	apiKey       string
+	baseURL      string
 	defaultModel string
-	client      *http.Client
-	maxRetries  int
+	client       *http.Client
+	maxRetries   int
 }
 
 // Option configures an OpenAI Provider.
@@ -127,16 +127,16 @@ type chatMessage struct {
 }
 
 type chatResponse struct {
-	ID      string       `json:"id"`
-	Model   string       `json:"model"`
-	Choices []choice     `json:"choices"`
+	ID      string        `json:"id"`
+	Model   string        `json:"model"`
+	Choices []choice      `json:"choices"`
 	Usage   usageResponse `json:"usage"`
 }
 
 type choice struct {
-	Index        int          `json:"index"`
-	Message      chatMessage  `json:"message"`
-	FinishReason string       `json:"finish_reason"`
+	Index        int         `json:"index"`
+	Message      chatMessage `json:"message"`
+	FinishReason string      `json:"finish_reason"`
 }
 
 type usageResponse struct {
@@ -155,9 +155,9 @@ type streamChunk struct {
 }
 
 type streamChoice struct {
-	Index        int            `json:"index"`
-	Delta        streamDelta    `json:"delta"`
-	FinishReason *string        `json:"finish_reason"`
+	Index        int         `json:"index"`
+	Delta        streamDelta `json:"delta"`
+	FinishReason *string     `json:"finish_reason"`
 }
 
 type streamDelta struct {
