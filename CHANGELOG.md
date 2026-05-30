@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 ## [0.7.0] - 2026-05-28
 
 ### Added
+- **Comprehensive benchmark suite** (`bench_test.go`)
+  - 35 benchmarks covering all major components: Tracer, CostCalculator, Retry, Limiter, Middleware, Chat, Errors, Provider
+  - Parallel benchmarks for concurrent hot paths (CostCalculator, Limiter)
+  - End-to-end Chat benchmarks with and without middleware/retry
+  - Error classification and provider error benchmarks
 - **Unified error types** (`errors.go`)
   - `ProviderError` struct with Provider, StatusCode, Code, Message, Type fields
   - `ErrorType` classification: auth, rate_limit, invalid_request, server_error, timeout, quota_exceeded, model_not_found, context_length

@@ -115,6 +115,31 @@ if err := lim.Wait(ctx); err != nil {
 }
 ```
 
+## Benchmarks
+
+Run benchmarks with:
+
+```bash
+go test -bench=. -benchmem ./...
+```
+
+Key results (Xeon Gold 6148, 2.40 GHz):
+
+| Benchmark | ns/op | B/op | allocs/op |
+|-----------|------:|-----:|----------:|
+| Tracer.Complete | ~9,000 | ~6,600 | 19 |
+| Tracer.Complete + Cost | ~9,400 | ~7,700 | 20 |
+| Tracer.Stream | ~16,000 | ~7,300 | 24 |
+| CostCalculator.Calculate | ~37 | 0 | 0 |
+| RetryConfig.CalculateDelay | ~40 | 0 | 0 |
+| WithRetry (immediate success) | ~11 | 0 | 0 |
+| Limiter.Allow | ~102 | 0 | 0 |
+| Limiter.Wait | ~900 | 0 | 0 |
+| Middleware Chain (1/3/5) | ~10/21/26 | 0 | 0 |
+| Chat (no middleware) | ~7,100 | — | — |
+| Chat + retry | ~10,400 | — | — |
+| ClassifyHTTPStatus | ~3 | 0 | 0 |
+
 ## License
 
 MIT
