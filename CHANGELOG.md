@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.8.0] - 2026-05-31
+
+### Added
+- **Comprehensive README** with full documentation
+  - Architecture diagram showing system components
+  - Detailed sections for all features (providers, streaming, retry, rate limiting, middleware, metrics, errors)
+  - Code examples for every major feature
+  - Prometheus metrics reference table
+  - Configuration guide with all options
+  - Contributing guidelines
+  - Go Reference and CI badges
+- **MIT License** file (`LICENSE`)
+
 ## [0.7.0] - 2026-05-28
 
 ### Added

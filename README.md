@@ -1,5 +1,9 @@
 # LLMTrace
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/atop0914/llmtrace.svg)](https://pkg.go.dev/github.com/atop0914/llmtrace)
+[![CI](https://github.com/atop0914/llmtrace/actions/workflows/ci.yml/badge.svg)](https://github.com/atop0914/llmtrace/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+
 **OpenTelemetry-native LLM Observability SDK for Go**
 
 LLMTrace wraps LLM client calls with OpenTelemetry spans, capturing token usage, latency, cost, and request/response metadata — following the [OTel GenAI semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/).
@@ -13,26 +17,53 @@ LLMTrace wraps LLM client calls with OpenTelemetry spans, capturing token usage,
 - **Retry with backoff** — configurable exponential backoff for transient errors
 - **Rate limiting** — token bucket rate limiter for API call throttling
 - **Middleware pattern** — add logging, hooks, and custom interceptors
-- **Zero-config defaults** — works out of the box with sensible defaults
+- **Prometheus metrics** — built-in metrics collector with `/metrics` endpoint
+- **Unified errors** — consistent error types across all providers
+- **Zero external dependencies** — only depends on OpenTelemetry
+
+## Installation
+
+```bash
+go get github.com/atop0914/llmtrace@latest
+```
 
 ## Quick Start
 
 ```go
+package main
+
 import (
+    "context"
+    "fmt"
+    "log"
+
     "github.com/atop0914/llmtrace"
     "github.com/atop0914/llmtrace/provider/openai"
 )
 
-provider := openai.New(openai.WithAPIKey("sk-..."))
-tracer := llmtrace.NewTracer("my-service",
-    llmtrace.WithProvider("openai"),
-    llmtrace.WithCostCalculator(llmtrace.NewCostCalculator()),
-)
+func main() {
+    // Create a provider
+    provider := openai.New(openai.WithAPIKey("sk-..."))
 
-resp, err := tracer.Chat(ctx, &llmtrace.Request{
-    Model:    "gpt-4o",
-    Messages: []llmtrace.Message{{Role: "user", Content: "Hello!"}},
-}, provider)
+    // Create a tracer with cost tracking
+    tracer := llmtrace.NewTracer("my-service",
+        llmtrace.WithProvider("openai"),
+        llmtrace.WithCostCalculator(llmtrace.NewCostCalculator()),
+    )
+
+    // Make a completion call
+    resp, err := tracer.Chat(context.Background(), &llmtrace.Request{
+        Model:    "gpt-4o",
+        Messages: []llmtrace.Message{{Role: "user", Content: "Hello!"}},
+    }, provider)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    fmt.Printf("Response: %s\n", resp.Content)
+    fmt.Printf("Tokens: %d (in: %d, out: %d)\n",
+        resp.Usage.TotalTokens, resp.Usage.InputTokens, resp.Usage.OutputTokens)
+}
 ```
 
 ## Providers
@@ -43,7 +74,46 @@ resp, err := tracer.Chat(ctx, &llmtrace.Request{
 | Anthropic | `provider/anthropic` | ✅ |
 | Gemini | `provider/gemini` | ✅ |
 
+### Creating a Provider
+
+```go
+// OpenAI
+provider := openai.New(
+    openai.WithAPIKey("sk-..."),
+    openai.WithBaseURL("https://api.openai.com/v1"), // optional, for proxies
+)
+
+// Anthropic
+provider := anthropic.New(
+    anthropic.WithAPIKey("sk-ant-..."),
+)
+
+// Gemini
+provider := gemini.New(
+    gemini.WithAPIKey("..."),
+)
+```
+
+## Streaming
+
+```go
+ch, err := tracer.ChatStream(ctx, &llmtrace.Request{
+    Model:    "gpt-4o",
+    Messages: []llmtrace.Message{{Role: "user", Content: "Write a poem."}},
+}, provider)
+
+for chunk := range ch {
+    if chunk.Error != nil {
+        log.Printf("stream error: %v", chunk.Error)
+        break
+    }
+    fmt.Print(chunk.Content)
+}
+```
+
 ## Retry with Backoff
+
+Automatically retry transient errors (rate limits, server errors) with exponential backoff:
 
 ```go
 resp, err := tracer.Chat(ctx, req, provider,
@@ -57,30 +127,12 @@ resp, err := tracer.Chat(ctx, req, provider,
 )
 ```
 
-## Middleware
+Or use the default config:
 
 ```go
-// Add a hook that runs after every request
 resp, err := tracer.Chat(ctx, req, provider,
-    llmtrace.WithCallMiddleware(
-        llmtrace.WithCompleteHook(func(ctx context.Context, req *llmtrace.Request, resp *llmtrace.Response, err error) {
-            log.Printf("model=%s tokens=%d", resp.Model, resp.Usage.TotalTokens)
-        }),
-    ),
+    llmtrace.WithCallRetry(llmtrace.DefaultRetryConfig()),
 )
-```
-
-## Streaming
-
-```go
-ch, err := tracer.ChatStream(ctx, &llmtrace.Request{
-    Model:    "gpt-4o",
-    Messages: []llmtrace.Message{{Role: "user", Content: "Write a poem."}},
-}, provider)
-
-for chunk := range ch {
-    fmt.Print(chunk.Content)
-}
 ```
 
 ## Rate Limiting
@@ -103,8 +155,11 @@ resp, err := tracer.Chat(ctx, req, provider,
         Burst: 20,  // burst up to 20
     }),
 )
+```
 
-// Non-blocking check
+Non-blocking checks:
+
+```go
 if lim.Allow() {
     // proceed immediately
 }
@@ -113,6 +168,187 @@ if lim.Allow() {
 if err := lim.Wait(ctx); err != nil {
     // context canceled or rate limit exceeded
 }
+```
+
+## Middleware
+
+Add custom behavior to the request pipeline:
+
+```go
+// Logging hook
+resp, err := tracer.Chat(ctx, req, provider,
+    llmtrace.WithCallMiddleware(
+        llmtrace.WithCompleteHook(func(ctx context.Context, req *llmtrace.Request, resp *llmtrace.Response, err error) {
+            log.Printf("model=%s tokens=%d latency=%v", resp.Model, resp.Usage.TotalTokens, resp.Latency)
+        }),
+    ),
+)
+
+// Timing middleware
+resp, err := tracer.Chat(ctx, req, provider,
+    llmtrace.WithCallMiddleware(
+        llmtrace.WithTiming(func(req *llmtrace.Request, durationMS float64) {
+            metrics.Observe("llm_latency_ms", durationMS)
+        }),
+    ),
+)
+
+// Chain multiple middlewares
+chain := llmtrace.Chain(
+    llmtrace.WithRateLimit(lim),
+    llmtrace.WithCompleteHook(loggingHook),
+)
+resp, err := tracer.Chat(ctx, req, provider,
+    llmtrace.WithCallMiddleware(chain),
+)
+```
+
+## Prometheus Metrics
+
+Expose LLM metrics for Prometheus scraping:
+
+```go
+import "github.com/atop0914/llmtrace/metrics"
+
+// Create a registry and collector
+reg := metrics.NewRegistry("llmtrace")
+collector := metrics.NewLLMCollector(reg)
+
+// Use as middleware
+resp, err := tracer.Chat(ctx, req, provider,
+    llmtrace.WithCallMiddleware(collector.Middleware()),
+)
+
+// Serve metrics endpoint
+http.Handle("/metrics", metrics.Handler(reg))
+log.Fatal(http.ListenAndServe(":2112", nil))
+```
+
+### Exposed Metrics
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `llmtrace_requests_total` | counter | provider, model | Total LLM requests |
+| `llmtrace_request_duration_seconds` | histogram | provider, model | Request latency |
+| `llmtrace_tokens_total` | counter | provider, model | Total tokens processed |
+| `llmtrace_input_tokens_total` | counter | provider, model | Input tokens sent |
+| `llmtrace_output_tokens_total` | counter | provider, model | Output tokens received |
+| `llmtrace_cost_usd_total` | counter | provider, model | Cumulative cost in USD |
+| `llmtrace_active_requests` | gauge | provider | In-flight requests |
+| `llmtrace_errors_total` | counter | provider, error_type | Failed requests |
+| `llmtrace_stream_chunks_total` | counter | provider, model | Stream chunks received |
+
+## Error Handling
+
+LLMTrace provides unified error types across all providers:
+
+```go
+resp, err := tracer.Chat(ctx, req, provider)
+if err != nil {
+    // Check specific error types
+    switch {
+    case llmtrace.IsRateLimit(err):
+        log.Println("rate limited, try again later")
+    case llmtrace.IsAuthError(err):
+        log.Println("check your API key")
+    case llmtrace.IsServerError(err):
+        log.Println("provider error, will retry")
+    case llmtrace.IsInvalidRequest(err):
+        log.Println("bad request parameters")
+    default:
+        log.Printf("unknown error: %v", err)
+    }
+
+    // Access structured error details
+    var pe *llmtrace.ProviderError
+    if errors.As(err, &pe) {
+        log.Printf("provider=%s status=%d code=%s type=%s",
+            pe.Provider, pe.StatusCode, pe.Code, pe.Type)
+    }
+}
+```
+
+### Transient Error Detection
+
+```go
+if llmtrace.IsTransient(err) {
+    // Error is likely temporary (rate limit, server error, timeout)
+    // Retry logic may succeed
+}
+```
+
+## Configuration
+
+### Tracer Options
+
+```go
+tracer := llmtrace.NewTracer("my-service",
+    llmtrace.WithProvider("openai"),              // set provider name
+    llmtrace.WithCostCalculator(costCalc),         // enable cost tracking
+)
+```
+
+### Provider Options
+
+```go
+provider := openai.New(
+    openai.WithAPIKey("sk-..."),                   // API key
+    openai.WithBaseURL("https://proxy.example.com"), // custom endpoint
+    openai.WithDefaultModel("gpt-4o"),             // default model
+    openai.WithMaxRetries(3),                      // provider-level retries
+)
+```
+
+### Cost Calculator
+
+```go
+calc := llmtrace.NewCostCalculator()
+
+// Add custom model pricing
+calc.SetPrice("my-model", llmtrace.CostEntry{
+    InputCostPer1K:  0.001,
+    OutputCostPer1K: 0.002,
+})
+```
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                      Your Application                    │
+├─────────────────────────────────────────────────────────┤
+│                    llmtrace.Tracer                       │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐              │
+│  │ Complete  │  │  Stream  │  │   Chat   │              │
+│  └────┬─────┘  └────┬─────┘  └────┬─────┘              │
+│       │              │              │                    │
+│  ┌────▼──────────────▼──────────────▼────┐              │
+│  │         Middleware Chain                │              │
+│  │  ┌──────┐  ┌──────┐  ┌──────┐        │              │
+│  │  │Rate  │  │Retry │  │Hooks │        │              │
+│  │  │Limit │  │      │  │      │        │              │
+│  │  └──────┘  └──────┘  └──────┘        │              │
+│  └────────────────┬──────────────────────┘              │
+│                   │                                      │
+│  ┌────────────────▼──────────────────────┐              │
+│  │          Provider Interface            │              │
+│  │  ┌────────┐ ┌──────────┐ ┌────────┐  │              │
+│  │  │ OpenAI │ │Anthropic │ │ Gemini │  │              │
+│  │  └────────┘ └──────────┘ └────────┘  │              │
+│  └───────────────────────────────────────┘              │
+│                                                          │
+│  ┌───────────────────────────────────────┐              │
+│  │     OpenTelemetry Spans (gen_ai.*)    │              │
+│  │  • gen_ai.system  • gen_ai.usage.*    │              │
+│  │  • gen_ai.request • gen_ai.response   │              │
+│  └───────────────────────────────────────┘              │
+│                                                          │
+│  ┌───────────────────────────────────────┐              │
+│  │     Prometheus Metrics (/metrics)     │              │
+│  │  • requests_total  • tokens_total     │              │
+│  │  • duration        • cost_usd_total   │              │
+│  └───────────────────────────────────────┘              │
+└─────────────────────────────────────────────────────────┘
 ```
 
 ## Benchmarks
@@ -140,6 +376,54 @@ Key results (Xeon Gold 6148, 2.40 GHz):
 | Chat + retry | ~10,400 | — | — |
 | ClassifyHTTPStatus | ~3 | 0 | 0 |
 
+## API Reference
+
+Full API documentation is available on [pkg.go.dev](https://pkg.go.dev/github.com/atop0914/llmtrace).
+
+### Core Types
+
+- `Tracer` — main entry point for tracing LLM calls
+- `Request` / `Response` — LLM request/response types
+- `Message` — conversation message with role and content
+- `Usage` — token usage tracking
+- `StreamChunk` — partial response in a stream
+
+### Key Functions
+
+- `NewTracer(serviceName, ...Option)` — create a new tracer
+- `tracer.Complete(ctx, req, fn)` — trace a non-streaming call
+- `tracer.Stream(ctx, req, fn)` — trace a streaming call
+- `tracer.Chat(ctx, req, provider, ...ChatOption)` — convenience method with retry/middleware
+- `tracer.ChatStream(ctx, req, provider, ...ChatOption)` — streaming convenience method
+
+## Examples
+
+See [examples/basic/](examples/basic/) for a complete usage demo.
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'feat: add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+### Development
+
+```bash
+# Run tests
+go test -short -v -race ./...
+
+# Run benchmarks
+go test -bench=. -benchmem ./...
+
+# Run linter
+golangci-lint run
+
+# Build
+go build ./...
+```
+
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE) for details.
