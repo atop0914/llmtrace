@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.0] - 2026-06-01
+
+### Added
+- **Structured logging with slog** (`slog.go`)
+  - `WithSlog()` middleware for completion calls with configurable log levels
+  - `WithStreamSlog()` middleware for streaming calls
+  - `SlogConfig` with options for log levels, request/response/error logging control
+  - Automatic error classification logging for `ProviderError` (provider, status_code, error_code, error_type)
+  - Latency tracking in all log entries
+  - Support for custom `slog.Logger` instances (falls back to `slog.Default()`)
+  - 18 comprehensive tests covering success, error, disabled logging, nil logger, and integration scenarios
+
 ## [0.8.0] - 2026-05-31
 
 ### Added

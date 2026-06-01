@@ -238,6 +238,92 @@ log.Fatal(http.ListenAndServe(":2112", nil))
 | `llmtrace_errors_total` | counter | provider, error_type | Failed requests |
 | `llmtrace_stream_chunks_total` | counter | provider, model | Stream chunks received |
 
+## Structured Logging
+
+Add structured logging to LLM calls using Go's `log/slog`:
+
+```go
+import "log/slog"
+
+// Configure slog middleware
+cfg := llmtrace.SlogConfig{
+    Logger:         slog.Default(),  // or custom logger
+    Level:          slog.LevelInfo,
+    ErrorLevel:     slog.LevelError,
+    LogRequest:     true,
+    LogResponse:    true,
+    LogErrors:      true,
+    SanitizeContent: true,
+}
+
+// Use with completion calls
+resp, err := tracer.Chat(ctx, req, provider,
+    llmtrace.WithCallMiddleware(llmtrace.WithSlog(cfg)),
+)
+
+// Use with streaming calls
+ch, err := tracer.ChatStream(ctx, req, provider,
+    llmtrace.WithCallMiddleware(llmtrace.WithStreamSlog(cfg)),
+)
+```
+
+### Log Output Examples
+
+Request start:
+```json
+{
+  "level": "INFO",
+  "msg": "llm request started",
+  "model": "gpt-4o",
+  "message_count": 3,
+  "max_tokens": 1000,
+  "temperature": 0.7
+}
+```
+
+Request completion:
+```json
+{
+  "level": "INFO",
+  "msg": "llm request completed",
+  "model": "gpt-4o",
+  "provider": "openai",
+  "latency": 1234567890,
+  "input_tokens": 150,
+  "output_tokens": 50,
+  "total_tokens": 200,
+  "finish_reason": "stop",
+  "response_id": "resp-abc123"
+}
+```
+
+Error with provider details:
+```json
+{
+  "level": "ERROR",
+  "msg": "llm request failed",
+  "model": "gpt-4o",
+  "latency": 500000000,
+  "error": "openai: rate limit exceeded",
+  "provider": "openai",
+  "status_code": 429,
+  "error_code": "rate_limit_exceeded",
+  "error_type": "rate_limit"
+}
+```
+
+### Configuration Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `Logger` | `*slog.Logger` | `slog.Default()` | Custom logger instance |
+| `Level` | `slog.Level` | `slog.LevelInfo` | Log level for success messages |
+| `ErrorLevel` | `slog.Level` | `slog.LevelError` | Log level for error messages |
+| `LogRequest` | `bool` | `true` | Log request start with model and message count |
+| `LogResponse` | `bool` | `true` | Log completion with tokens and latency |
+| `LogErrors` | `bool` | `true` | Log errors with provider details |
+| `SanitizeContent` | `bool` | `true` | Only log message count, not content |
+
 ## Error Handling
 
 LLMTrace provides unified error types across all providers:
