@@ -6,7 +6,7 @@ LDFLAGS := -s -w \
 	-X github.com/atop0914/llmtrace/internal/version.GitCommit=$(COMMIT) \
 	-X github.com/atop0914/llmtrace/internal/version.BuildDate=$(DATE)
 
-.PHONY: test lint build bench
+.PHONY: test lint build bench vet ci clean
 
 test:
 	go test -short -v -race -count=1 ./...
@@ -22,3 +22,8 @@ build:
 
 vet:
 	go vet ./...
+
+ci: vet lint test bench
+
+clean:
+	rm -rf bin/ dist/

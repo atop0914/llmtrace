@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.0] - 2026-06-02
+
+### Added
+- **CI/CD pipelines** (`.github/workflows/`)
+  - `ci.yml`: multi-version Go matrix testing (1.23/1.24/1.25), benchmarks, lint, and build verification on push/PR
+  - `release.yml`: automated release on tag push with test validation and GitHub Release notes generation
+- **Makefile enhancements**: `ci` target (vet + lint + test + bench), `clean` target
+
+### Changed
+- This is the first stable release of LLMTrace
+- All features from v0.1.0 through v0.9.0 are included and battle-tested
+
 ## [0.9.0] - 2026-06-01
 
 ### Added
