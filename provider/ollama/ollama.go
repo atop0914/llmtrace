@@ -42,9 +42,6 @@ const (
 
 	// chatPath is the API path for chat completions.
 	chatPath = "/api/chat"
-
-	// generatePath is the API path for text generation.
-	generatePath = "/api/generate"
 )
 
 // Provider implements llmtrace.Provider for Ollama's local LLM server.
@@ -122,16 +119,16 @@ type chatOptions struct {
 }
 
 type chatResponse struct {
-	Model              string        `json:"model"`
-	Message            *chatMessage  `json:"message"`
-	Done               bool          `json:"done"`
-	TotalDuration      int64         `json:"total_duration"`       // nanoseconds
-	LoadDuration       int64         `json:"load_duration"`        // nanoseconds
-	PromptEvalCount    int           `json:"prompt_eval_count"`    // input tokens
-	PromptEvalDuration int64         `json:"prompt_eval_duration"` // nanoseconds
-	EvalCount          int           `json:"eval_count"`           // output tokens
-	EvalDuration       int64         `json:"eval_duration"`        // nanoseconds
-	Error              string        `json:"error,omitempty"`
+	Model              string       `json:"model"`
+	Message            *chatMessage `json:"message"`
+	Done               bool         `json:"done"`
+	TotalDuration      int64        `json:"total_duration"`       // nanoseconds
+	LoadDuration       int64        `json:"load_duration"`        // nanoseconds
+	PromptEvalCount    int          `json:"prompt_eval_count"`    // input tokens
+	PromptEvalDuration int64        `json:"prompt_eval_duration"` // nanoseconds
+	EvalCount          int          `json:"eval_count"`           // output tokens
+	EvalDuration       int64        `json:"eval_duration"`        // nanoseconds
+	Error              string       `json:"error,omitempty"`
 }
 
 // Complete makes a non-streaming chat completion request to Ollama.
@@ -153,7 +150,7 @@ func (p *Provider) Complete(ctx context.Context, req *llmtrace.Request) (*llmtra
 		opts := &chatOptions{
 			Temperature: req.Temperature,
 			TopP:        req.TopP,
-			NumPredict:   req.MaxTokens,
+			NumPredict:  req.MaxTokens,
 			Stop:        req.Stop,
 		}
 		ollamaReq.Options = opts
@@ -242,7 +239,7 @@ func (p *Provider) Stream(ctx context.Context, req *llmtrace.Request) (<-chan ll
 		opts := &chatOptions{
 			Temperature: req.Temperature,
 			TopP:        req.TopP,
-			NumPredict:   req.MaxTokens,
+			NumPredict:  req.MaxTokens,
 			Stop:        req.Stop,
 		}
 		ollamaReq.Options = opts
