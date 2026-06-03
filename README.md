@@ -2,6 +2,7 @@
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/atop0914/llmtrace.svg)](https://pkg.go.dev/github.com/atop0914/llmtrace)
 [![CI](https://github.com/atop0914/llmtrace/actions/workflows/ci.yml/badge.svg)](https://github.com/atop0914/llmtrace/actions/workflows/ci.yml)
+[![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go)](https://go.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 **OpenTelemetry-native LLM Observability SDK for Go**
