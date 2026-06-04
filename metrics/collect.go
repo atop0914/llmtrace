@@ -14,18 +14,18 @@ type SnapshotData struct {
 
 // CounterSnapshot holds a counter family's data.
 type CounterSnapshot struct {
-	Name    string           `json:"name"`
-	Help    string           `json:"help"`
-	Labels  []string         `json:"labels"`
-	Samples []ValueSample    `json:"samples"`
+	Name    string        `json:"name"`
+	Help    string        `json:"help"`
+	Labels  []string      `json:"labels"`
+	Samples []ValueSample `json:"samples"`
 }
 
 // GaugeSnapshot holds a gauge family's data.
 type GaugeSnapshot struct {
-	Name    string           `json:"name"`
-	Help    string           `json:"help"`
-	Labels  []string         `json:"labels"`
-	Samples []ValueSample    `json:"samples"`
+	Name    string        `json:"name"`
+	Help    string        `json:"help"`
+	Labels  []string      `json:"labels"`
+	Samples []ValueSample `json:"samples"`
 }
 
 // HistogramSnapshot holds a histogram family's data.
@@ -44,10 +44,10 @@ type ValueSample struct {
 
 // HistogramSample is a histogram data point with label values.
 type HistogramSample struct {
-	LabelValues []string  `json:"label_values"`
+	LabelValues []string      `json:"label_values"`
 	Buckets     []BucketPoint `json:"buckets"`
-	Count       uint64    `json:"count"`
-	Sum         float64   `json:"sum"`
+	Count       uint64        `json:"count"`
+	Sum         float64       `json:"sum"`
 }
 
 // BucketPoint is a single histogram bucket.
@@ -134,7 +134,7 @@ func (r *Registry) Collect() SnapshotData {
 			buckets, count, sum := h.Snapshot()
 			bp := make([]BucketPoint, len(buckets))
 			for i, b := range buckets {
-				bp[i] = BucketPoint{Upper: b.Upper, Count: b.Count}
+				bp[i] = BucketPoint(b)
 			}
 			hs.Samples = append(hs.Samples, HistogramSample{
 				LabelValues: values,

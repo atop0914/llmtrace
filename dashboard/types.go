@@ -8,17 +8,17 @@ import (
 
 // OverviewResponse is the /api/overview response.
 type OverviewResponse struct {
-	TotalRequests   int64   `json:"total_requests"`
-	TotalTokens     int64   `json:"total_tokens"`
-	InputTokens     int64   `json:"input_tokens"`
-	OutputTokens    int64   `json:"output_tokens"`
-	TotalCostUSD    float64 `json:"total_cost_usd"`
-	ActiveRequests  int64   `json:"active_requests"`
-	TotalErrors     int64   `json:"total_errors"`
-	AvgLatencyMS    float64 `json:"avg_latency_ms"`
-	ProviderCount   int     `json:"provider_count"`
-	ModelCount      int     `json:"model_count"`
-	Timestamp       string  `json:"timestamp"`
+	TotalRequests  int64   `json:"total_requests"`
+	TotalTokens    int64   `json:"total_tokens"`
+	InputTokens    int64   `json:"input_tokens"`
+	OutputTokens   int64   `json:"output_tokens"`
+	TotalCostUSD   float64 `json:"total_cost_usd"`
+	ActiveRequests int64   `json:"active_requests"`
+	TotalErrors    int64   `json:"total_errors"`
+	AvgLatencyMS   float64 `json:"avg_latency_ms"`
+	ProviderCount  int     `json:"provider_count"`
+	ModelCount     int     `json:"model_count"`
+	Timestamp      string  `json:"timestamp"`
 }
 
 // ProviderResponse is the /api/providers response.
@@ -79,7 +79,7 @@ type BucketPoint struct {
 
 // CostResponse is the /api/costs response.
 type CostResponse struct {
-	TotalUSD float64      `json:"total_usd"`
+	TotalUSD float64       `json:"total_usd"`
 	ByModel  []CostByModel `json:"by_model"`
 }
 
@@ -94,9 +94,9 @@ type CostByModel struct {
 
 // ErrorResponse is the /api/errors response.
 type ErrorResponse struct {
-	TotalErrors int64          `json:"total_errors"`
-	ByType      []ErrorByType  `json:"by_type"`
-	ByProvider  []ErrorByProv  `json:"by_provider"`
+	TotalErrors int64         `json:"total_errors"`
+	ByType      []ErrorByType `json:"by_type"`
+	ByProvider  []ErrorByProv `json:"by_provider"`
 }
 
 // ErrorByType holds error count by error category.
@@ -113,7 +113,7 @@ type ErrorByProv struct {
 
 // SSEEvent is a Server-Sent Event.
 type SSEEvent struct {
-	Type      string      `json:"type"`       // "overview", "providers", etc.
+	Type      string      `json:"type"` // "overview", "providers", etc.
 	Data      interface{} `json:"data"`
 	Timestamp time.Time   `json:"timestamp"`
 }

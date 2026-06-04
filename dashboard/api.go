@@ -476,7 +476,5 @@ func (h *apiHandler) writeJSON(w http.ResponseWriter, v interface{}) {
 
 func (h *apiHandler) writeError(w http.ResponseWriter, code int, msg string) {
 	w.WriteHeader(code)
-	json.NewEncoder(w).Encode(map[string]string{"error": msg})
+	_ = json.NewEncoder(w).Encode(map[string]string{"error": msg})
 }
-
-
