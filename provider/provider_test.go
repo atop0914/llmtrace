@@ -16,6 +16,7 @@ import (
 
 	"github.com/atop0914/llmtrace"
 	"github.com/atop0914/llmtrace/provider/anthropic"
+	"github.com/atop0914/llmtrace/provider/compat"
 	"github.com/atop0914/llmtrace/provider/gemini"
 	"github.com/atop0914/llmtrace/provider/ollama"
 	"github.com/atop0914/llmtrace/provider/openai"
@@ -62,6 +63,17 @@ func allProviders() []providerFactory {
 			newFunc: func(baseURL string) llmtrace.Provider {
 				return ollama.New(
 					ollama.WithBaseURL(baseURL),
+				)
+			},
+		},
+		{
+			name: "vllm",
+			newFunc: func(baseURL string) llmtrace.Provider {
+				return compat.New(
+					compat.WithName("vllm"),
+					compat.WithBaseURL(baseURL+"/v1"),
+					compat.WithAPIKey("test-key"),
+					compat.WithModel("llama3"),
 				)
 			},
 		},
@@ -200,6 +212,38 @@ func TestProvider_CompleteRoundTrip(t *testing.T) {
 				json.NewEncoder(w).Encode(resp)
 			},
 		},
+		{
+			name: "vllm",
+			provider: compat.New(
+				compat.WithName("vllm"),
+				compat.WithBaseURL("http://vllm-test/v1"),
+				compat.WithAPIKey("test-key"),
+				compat.WithModel("llama3"),
+			),
+			server: func(w http.ResponseWriter, r *http.Request) {
+				resp := map[string]any{
+					"id":    "chatcmpl-vllm-123",
+					"model": "llama3",
+					"choices": []map[string]any{
+						{
+							"index": 0,
+							"message": map[string]string{
+								"role":    "assistant",
+								"content": "Hello from vLLM!",
+							},
+							"finish_reason": "stop",
+						},
+					},
+					"usage": map[string]int{
+						"prompt_tokens":     10,
+						"completion_tokens": 5,
+						"total_tokens":      15,
+					},
+				}
+				w.Header().Set("Content-Type", "application/json")
+				json.NewEncoder(w).Encode(resp)
+			},
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			server := httptest.NewServer(tc.server)
@@ -226,6 +270,13 @@ func TestProvider_CompleteRoundTrip(t *testing.T) {
 			case "ollama":
 				p = ollama.New(
 					ollama.WithBaseURL(server.URL),
+				)
+			case "vllm":
+				p = compat.New(
+					compat.WithName("vllm"),
+					compat.WithBaseURL(server.URL+"/v1"),
+					compat.WithAPIKey("test-key"),
+					compat.WithModel("llama3"),
 				)
 			}
 
@@ -398,6 +449,8 @@ func TestProvider_EmptyMessages(t *testing.T) {
 				p = gemini.New(gemini.WithAPIKey("test"), gemini.WithBaseURL(server.URL))
 			case "ollama":
 				p = ollama.New(ollama.WithBaseURL(server.URL))
+			case "vllm":
+				p = compat.New(compat.WithName("vllm"), compat.WithBaseURL(server.URL+"/v1"), compat.WithAPIKey("test"))
 			}
 
 			req := &llmtrace.Request{
@@ -448,6 +501,13 @@ func TestProvider_ConcurrentRequests(t *testing.T) {
 						"message": map[string]string{"role": "assistant", "content": "ok"},
 						"done":    true,
 					}
+				case "vllm":
+					resp = map[string]any{
+						"choices": []map[string]any{
+							{"message": map[string]string{"content": "ok"}, "finish_reason": "stop"},
+						},
+						"usage": map[string]int{"total_tokens": 1},
+					}
 				}
 				w.Header().Set("Content-Type", "application/json")
 				json.NewEncoder(w).Encode(resp)
@@ -464,6 +524,8 @@ func TestProvider_ConcurrentRequests(t *testing.T) {
 				p = gemini.New(gemini.WithAPIKey("test"), gemini.WithBaseURL(server.URL))
 			case "ollama":
 				p = ollama.New(ollama.WithBaseURL(server.URL))
+			case "vllm":
+				p = compat.New(compat.WithName("vllm"), compat.WithBaseURL(server.URL+"/v1"), compat.WithAPIKey("test"))
 			}
 
 			// Run sequential requests (not parallel to avoid server closing early)
