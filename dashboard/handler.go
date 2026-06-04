@@ -31,15 +31,15 @@ type Config struct {
 //
 // Usage:
 //
-//   reg := metrics.NewRegistry("llmtrace")
-//   collector := metrics.NewLLMCollector(reg)
+//	reg := metrics.NewRegistry("llmtrace")
+//	collector := metrics.NewLLMCollector(reg)
 //
-//   // ... use collector as middleware ...
+//	// ... use collector as middleware ...
 //
-//   dash := dashboard.Handler(reg, dashboard.Config{
-//       SSEInterval: 2 * time.Second,
-//   })
-//   log.Fatal(http.ListenAndServe(":8080", dash))
+//	dash := dashboard.Handler(reg, dashboard.Config{
+//	    SSEInterval: 2 * time.Second,
+//	})
+//	log.Fatal(http.ListenAndServe(":8080", dash))
 func Handler(reg *metrics.Registry, cfg Config) http.Handler {
 	mux := http.NewServeMux()
 
@@ -67,7 +67,7 @@ func Handler(reg *metrics.Registry, cfg Config) http.Handler {
 				return
 			}
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			w.Write([]byte(landingHTML))
+			_, _ = w.Write([]byte(landingHTML))
 		})
 	}
 
