@@ -71,7 +71,7 @@ func setupRegistry() *metrics.Registry {
 
 func TestHandleOverview(t *testing.T) {
 	reg := setupRegistry()
-	handler := newAPIHandler(reg)
+	handler := newAPIHandler(reg, nil)
 
 	req := httptest.NewRequest("GET", "/api/overview", nil)
 	w := httptest.NewRecorder()
@@ -123,7 +123,7 @@ func TestHandleOverview(t *testing.T) {
 
 func TestHandleProviders(t *testing.T) {
 	reg := setupRegistry()
-	handler := newAPIHandler(reg)
+	handler := newAPIHandler(reg, nil)
 
 	req := httptest.NewRequest("GET", "/api/providers", nil)
 	w := httptest.NewRecorder()
@@ -164,7 +164,7 @@ func TestHandleProviders(t *testing.T) {
 
 func TestHandleModels(t *testing.T) {
 	reg := setupRegistry()
-	handler := newAPIHandler(reg)
+	handler := newAPIHandler(reg, nil)
 
 	req := httptest.NewRequest("GET", "/api/models", nil)
 	w := httptest.NewRecorder()
@@ -213,7 +213,7 @@ func TestHandleModels(t *testing.T) {
 
 func TestHandleLatency(t *testing.T) {
 	reg := setupRegistry()
-	handler := newAPIHandler(reg)
+	handler := newAPIHandler(reg, nil)
 
 	req := httptest.NewRequest("GET", "/api/latency", nil)
 	w := httptest.NewRecorder()
@@ -255,7 +255,7 @@ func TestHandleLatency(t *testing.T) {
 
 func TestHandleCosts(t *testing.T) {
 	reg := setupRegistry()
-	handler := newAPIHandler(reg)
+	handler := newAPIHandler(reg, nil)
 
 	req := httptest.NewRequest("GET", "/api/costs", nil)
 	w := httptest.NewRecorder()
@@ -289,7 +289,7 @@ func TestHandleCosts(t *testing.T) {
 
 func TestHandleErrors(t *testing.T) {
 	reg := setupRegistry()
-	handler := newAPIHandler(reg)
+	handler := newAPIHandler(reg, nil)
 
 	req := httptest.NewRequest("GET", "/api/errors", nil)
 	w := httptest.NewRecorder()
@@ -327,7 +327,7 @@ func TestHandleErrors(t *testing.T) {
 
 func TestHandleUnknownEndpoint(t *testing.T) {
 	reg := setupRegistry()
-	handler := newAPIHandler(reg)
+	handler := newAPIHandler(reg, nil)
 
 	req := httptest.NewRequest("GET", "/api/nonexistent", nil)
 	w := httptest.NewRecorder()
@@ -395,7 +395,7 @@ func TestSSEEndpoint(t *testing.T) {
 
 func TestEmptyRegistry(t *testing.T) {
 	reg := metrics.NewRegistry("empty")
-	handler := newAPIHandler(reg)
+	handler := newAPIHandler(reg, nil)
 
 	req := httptest.NewRequest("GET", "/api/overview", nil)
 	w := httptest.NewRecorder()
@@ -424,7 +424,7 @@ func TestEmptyRegistry(t *testing.T) {
 
 func TestCORSHeader(t *testing.T) {
 	reg := setupRegistry()
-	handler := newAPIHandler(reg)
+	handler := newAPIHandler(reg, nil)
 
 	req := httptest.NewRequest("GET", "/api/overview", nil)
 	w := httptest.NewRecorder()
@@ -437,7 +437,7 @@ func TestCORSHeader(t *testing.T) {
 
 func TestJSONContentType(t *testing.T) {
 	reg := setupRegistry()
-	handler := newAPIHandler(reg)
+	handler := newAPIHandler(reg, nil)
 
 	endpoints := []string{"/api/overview", "/api/providers", "/api/models", "/api/latency", "/api/costs", "/api/errors"}
 	for _, ep := range endpoints {
@@ -449,6 +449,200 @@ func TestJSONContentType(t *testing.T) {
 		if ct != "application/json" {
 			t.Errorf("%s: expected application/json, got %s", ep, ct)
 		}
+	}
+}
+
+// mockTraceStore is a simple in-memory trace store for testing.
+type mockTraceStore struct {
+	records []TraceRecord
+}
+
+func (m *mockTraceStore) Query(q TraceQuery) []TraceRecord {
+	var results []TraceRecord
+	for _, r := range m.records {
+		if q.Provider != "" && r.Provider != q.Provider {
+			continue
+		}
+		if q.Model != "" && r.Model != q.Model {
+			continue
+		}
+		if q.Status != "" && r.Status != q.Status {
+			continue
+		}
+		results = append(results, r)
+	}
+	if q.Limit > 0 && len(results) > q.Limit {
+		results = results[:q.Limit]
+	}
+	return results
+}
+
+func (m *mockTraceStore) TraceSummary() TraceSummaryResult {
+	result := TraceSummaryResult{
+		Providers: make(map[string]int),
+		Models:    make(map[string]int),
+	}
+	for _, r := range m.records {
+		result.TotalTraces++
+		result.TotalTokens += r.TotalTokens
+		result.TotalCostUSD += r.CostUSD
+		if r.Status == "error" {
+			result.TotalErrors++
+		}
+		result.Providers[r.Provider]++
+		result.Models[r.Model]++
+	}
+	return result
+}
+
+func (m *mockTraceStore) Len() int { return len(m.records) }
+
+func TestHandleTraces(t *testing.T) {
+	reg := setupRegistry()
+	store := &mockTraceStore{
+		records: []TraceRecord{
+			{ID: "trace-1", Provider: "openai", Model: "gpt-4o", Status: "success", InputTokens: 100, OutputTokens: 50, TotalTokens: 150},
+			{ID: "trace-2", Provider: "anthropic", Model: "claude-3-opus", Status: "error", Error: "rate limit"},
+			{ID: "trace-3", Provider: "openai", Model: "gpt-3.5-turbo", Status: "success", InputTokens: 200, OutputTokens: 100, TotalTokens: 300},
+		},
+	}
+	handler := newAPIHandler(reg, store)
+
+	t.Run("all traces", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/traces", nil)
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", w.Code)
+		}
+
+		var resp TracesResponse
+		if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+			t.Fatal(err)
+		}
+		if len(resp.Traces) != 3 {
+			t.Errorf("expected 3 traces, got %d", len(resp.Traces))
+		}
+		if resp.Total != 3 {
+			t.Errorf("expected total 3, got %d", resp.Total)
+		}
+	})
+
+	t.Run("filter by provider", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/traces?provider=openai", nil)
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+
+		var resp TracesResponse
+		if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+			t.Fatal(err)
+		}
+		if len(resp.Traces) != 2 {
+			t.Errorf("expected 2 openai traces, got %d", len(resp.Traces))
+		}
+	})
+
+	t.Run("filter by status", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/traces?status=error", nil)
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+
+		var resp TracesResponse
+		if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+			t.Fatal(err)
+		}
+		if len(resp.Traces) != 1 {
+			t.Errorf("expected 1 error trace, got %d", len(resp.Traces))
+		}
+		if resp.Traces[0].ID != "trace-2" {
+			t.Errorf("expected trace-2, got %s", resp.Traces[0].ID)
+		}
+	})
+
+	t.Run("limit", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/traces?limit=1", nil)
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+
+		var resp TracesResponse
+		if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+			t.Fatal(err)
+		}
+		if len(resp.Traces) != 1 {
+			t.Errorf("expected 1 trace with limit, got %d", len(resp.Traces))
+		}
+	})
+}
+
+func TestHandleTraces_NilStore(t *testing.T) {
+	reg := setupRegistry()
+	handler := newAPIHandler(reg, nil)
+
+	req := httptest.NewRequest("GET", "/api/traces", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	var resp TracesResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Traces) != 0 {
+		t.Errorf("expected 0 traces with nil store, got %d", len(resp.Traces))
+	}
+}
+
+func TestHandleTraceSummary(t *testing.T) {
+	reg := setupRegistry()
+	store := &mockTraceStore{
+		records: []TraceRecord{
+			{Provider: "openai", Model: "gpt-4o", Status: "success", TotalTokens: 150, CostUSD: 0.01},
+			{Provider: "openai", Model: "gpt-4o", Status: "error", TotalTokens: 0, CostUSD: 0},
+			{Provider: "anthropic", Model: "claude-3-opus", Status: "success", TotalTokens: 300, CostUSD: 0.02},
+		},
+	}
+	handler := newAPIHandler(reg, store)
+
+	req := httptest.NewRequest("GET", "/api/traces/summary", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp TraceSummaryResult
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.TotalTraces != 3 {
+		t.Errorf("expected 3 traces, got %d", resp.TotalTraces)
+	}
+	if resp.TotalErrors != 1 {
+		t.Errorf("expected 1 error, got %d", resp.TotalErrors)
+	}
+	if resp.TotalTokens != 450 {
+		t.Errorf("expected 450 tokens, got %d", resp.TotalTokens)
+	}
+	if resp.Providers["openai"] != 2 {
+		t.Errorf("expected 2 openai traces, got %d", resp.Providers["openai"])
+	}
+}
+
+func TestHandleTraceSummary_NilStore(t *testing.T) {
+	reg := setupRegistry()
+	handler := newAPIHandler(reg, nil)
+
+	req := httptest.NewRequest("GET", "/api/traces/summary", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	var resp TraceSummaryResult
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.TotalTraces != 0 {
+		t.Errorf("expected 0 traces, got %d", resp.TotalTraces)
 	}
 }
 

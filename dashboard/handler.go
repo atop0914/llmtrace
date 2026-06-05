@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/atop0914/llmtrace"
 	"github.com/atop0914/llmtrace/metrics"
 )
 
@@ -15,7 +16,28 @@ type Config struct {
 	// StaticFS is the embedded filesystem for static assets.
 	// If nil, only API endpoints are served.
 	StaticFS http.FileSystem
+
+	// TraceStore is an optional TraceStore for the /api/traces endpoint.
+	// If nil, trace endpoints return empty results.
+	TraceStore TraceStorer
 }
+
+// TraceStorer is the interface for querying traces.
+// *llmtrace.TraceStore satisfies this interface.
+type TraceStorer interface {
+	Query(q TraceQuery) []TraceRecord
+	TraceSummary() TraceSummaryResult
+	Len() int
+}
+
+// TraceQuery re-exports llmtrace.TraceQuery for dashboard use.
+type TraceQuery = llmtrace.TraceQuery
+
+// TraceRecord re-exports llmtrace.TraceRecord for dashboard use.
+type TraceRecord = llmtrace.TraceRecord
+
+// TraceSummaryResult re-exports llmtrace.TraceSummaryResult for dashboard use.
+type TraceSummaryResult = llmtrace.TraceSummaryResult
 
 // Handler returns an http.Handler that serves the dashboard.
 // It provides:
@@ -44,13 +66,15 @@ func Handler(reg *metrics.Registry, cfg Config) http.Handler {
 	mux := http.NewServeMux()
 
 	// API endpoints
-	api := newAPIHandler(reg)
+	api := newAPIHandler(reg, cfg.TraceStore)
 	mux.Handle("/api/overview", api)
 	mux.Handle("/api/providers", api)
 	mux.Handle("/api/models", api)
 	mux.Handle("/api/latency", api)
 	mux.Handle("/api/costs", api)
 	mux.Handle("/api/errors", api)
+	mux.Handle("/api/traces", api)
+	mux.Handle("/api/traces/summary", api)
 
 	// SSE endpoint
 	sse := newSSEHandler(reg, cfg.SSEInterval)
@@ -113,6 +137,8 @@ const landingHTML = `<!DOCTYPE html>
             <a href="/api/latency">GET /api/latency</a>
             <a href="/api/costs">GET /api/costs</a>
             <a href="/api/errors">GET /api/errors</a>
+            <a href="/api/traces">GET /api/traces</a>
+            <a href="/api/traces/summary">GET /api/traces/summary</a>
             <a href="/api/events">GET /api/events (SSE)</a>
         </div>
     </div>

@@ -117,3 +117,9 @@ type SSEEvent struct {
 	Data      interface{} `json:"data"`
 	Timestamp time.Time   `json:"timestamp"`
 }
+
+// TracesResponse is the /api/traces response.
+type TracesResponse struct {
+	Traces []TraceRecord `json:"traces"`
+	Total  int           `json:"total"`
+}
