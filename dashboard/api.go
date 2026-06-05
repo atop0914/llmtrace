@@ -5,6 +5,7 @@ import (
 	"math"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -13,12 +14,13 @@ import (
 
 // apiHandler serves the dashboard JSON API.
 type apiHandler struct {
-	registry *metrics.Registry
+	registry   *metrics.Registry
+	traceStore TraceStorer
 }
 
 // newAPIHandler creates a new API handler.
-func newAPIHandler(reg *metrics.Registry) *apiHandler {
-	return &apiHandler{registry: reg}
+func newAPIHandler(reg *metrics.Registry, ts TraceStorer) *apiHandler {
+	return &apiHandler{registry: reg, traceStore: ts}
 }
 
 // ServeHTTP routes API requests.
@@ -40,6 +42,10 @@ func (h *apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.handleCosts(w, r)
 	case "/errors":
 		h.handleErrors(w, r)
+	case "/traces":
+		h.handleTraces(w, r)
+	case "/traces/summary":
+		h.handleTraceSummary(w, r)
 	default:
 		h.writeError(w, http.StatusNotFound, "unknown endpoint")
 	}
@@ -464,6 +470,59 @@ func (h *apiHandler) handleErrors(w http.ResponseWriter, _ *http.Request) {
 	})
 
 	h.writeJSON(w, resp)
+}
+
+func (h *apiHandler) handleTraces(w http.ResponseWriter, r *http.Request) {
+	if h.traceStore == nil {
+		h.writeJSON(w, TracesResponse{Traces: []TraceRecord{}})
+		return
+	}
+
+	q := TraceQuery{
+		SortDesc: true, // newest first by default
+	}
+
+	params := r.URL.Query()
+	if v := params.Get("provider"); v != "" {
+		q.Provider = v
+	}
+	if v := params.Get("model"); v != "" {
+		q.Model = v
+	}
+	if v := params.Get("status"); v != "" {
+		q.Status = v
+	}
+	if v := params.Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			q.Limit = n
+		}
+	}
+	if v := params.Get("since"); v != "" {
+		if t, err := time.Parse(time.RFC3339, v); err == nil {
+			q.Since = t
+		}
+	}
+	if v := params.Get("sort"); v == "asc" {
+		q.SortDesc = false
+	}
+
+	traces := h.traceStore.Query(q)
+	if traces == nil {
+		traces = []TraceRecord{}
+	}
+
+	h.writeJSON(w, TracesResponse{
+		Traces: traces,
+		Total:  h.traceStore.Len(),
+	})
+}
+
+func (h *apiHandler) handleTraceSummary(w http.ResponseWriter, _ *http.Request) {
+	if h.traceStore == nil {
+		h.writeJSON(w, TraceSummaryResult{})
+		return
+	}
+	h.writeJSON(w, h.traceStore.TraceSummary())
 }
 
 func (h *apiHandler) writeJSON(w http.ResponseWriter, v interface{}) {
