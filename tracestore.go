@@ -131,7 +131,7 @@ type TraceStoreConfig struct {
 type TraceStore struct {
 	mu      sync.RWMutex
 	records []TraceRecord
- maxSize int
+	maxSize int
 	head    int // next write position
 	count   int // number of valid records
 	nextID  int64
@@ -273,18 +273,18 @@ func (s *TraceStore) TraceSummary() TraceSummaryResult {
 
 // TraceSummaryResult holds aggregate statistics for traces.
 type TraceSummaryResult struct {
-	TotalTraces      int            `json:"total_traces"`
-	TotalTokens      int            `json:"total_tokens"`
-	TotalInputTokens int            `json:"total_input_tokens"`
-	TotalOutputTokens int           `json:"total_output_tokens"`
-	TotalCostUSD     float64        `json:"total_cost_usd"`
-	TotalErrors      int            `json:"total_errors"`
-	AvgLatencyMS     float64        `json:"avg_latency_ms"`
-	MinLatencyMS     float64        `json:"min_latency_ms"`
-	MaxLatencyMS     float64        `json:"max_latency_ms"`
-	LatencySum       float64        `json:"-"`
-	Providers        map[string]int `json:"providers"`
-	Models           map[string]int `json:"models"`
+	TotalTraces       int            `json:"total_traces"`
+	TotalTokens       int            `json:"total_tokens"`
+	TotalInputTokens  int            `json:"total_input_tokens"`
+	TotalOutputTokens int            `json:"total_output_tokens"`
+	TotalCostUSD      float64        `json:"total_cost_usd"`
+	TotalErrors       int            `json:"total_errors"`
+	AvgLatencyMS      float64        `json:"avg_latency_ms"`
+	MinLatencyMS      float64        `json:"min_latency_ms"`
+	MaxLatencyMS      float64        `json:"max_latency_ms"`
+	LatencySum        float64        `json:"-"`
+	Providers         map[string]int `json:"providers"`
+	Models            map[string]int `json:"models"`
 }
 
 // Middleware returns a Middleware that captures trace records for each call.
