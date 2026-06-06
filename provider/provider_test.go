@@ -16,6 +16,7 @@ import (
 
 	"github.com/atop0914/llmtrace"
 	"github.com/atop0914/llmtrace/provider/anthropic"
+	"github.com/atop0914/llmtrace/provider/azure"
 	"github.com/atop0914/llmtrace/provider/compat"
 	"github.com/atop0914/llmtrace/provider/gemini"
 	"github.com/atop0914/llmtrace/provider/ollama"
@@ -74,6 +75,16 @@ func allProviders() []providerFactory {
 					compat.WithBaseURL(baseURL+"/v1"),
 					compat.WithAPIKey("test-key"),
 					compat.WithModel("llama3"),
+				)
+			},
+		},
+		{
+			name: "azure",
+			newFunc: func(baseURL string) llmtrace.Provider {
+				return azure.New(
+					azure.WithEndpoint(baseURL),
+					azure.WithDeployment("test-deployment"),
+					azure.WithAPIKey("test-key"),
 				)
 			},
 		},
@@ -244,6 +255,37 @@ func TestProvider_CompleteRoundTrip(t *testing.T) {
 				json.NewEncoder(w).Encode(resp)
 			},
 		},
+		{
+			name: "azure",
+			provider: azure.New(
+				azure.WithEndpoint("http://azure-test"),
+				azure.WithDeployment("test-deployment"),
+				azure.WithAPIKey("test-key"),
+			),
+			server: func(w http.ResponseWriter, r *http.Request) {
+				resp := map[string]any{
+					"id":    "chatcmpl-azure-123",
+					"model": "gpt-4o",
+					"choices": []map[string]any{
+						{
+							"index": 0,
+							"message": map[string]string{
+								"role":    "assistant",
+								"content": "Hello from Azure!",
+							},
+							"finish_reason": "stop",
+						},
+					},
+					"usage": map[string]int{
+						"prompt_tokens":     10,
+						"completion_tokens": 5,
+						"total_tokens":      15,
+					},
+				}
+				w.Header().Set("Content-Type", "application/json")
+				json.NewEncoder(w).Encode(resp)
+			},
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			server := httptest.NewServer(tc.server)
@@ -277,6 +319,12 @@ func TestProvider_CompleteRoundTrip(t *testing.T) {
 					compat.WithBaseURL(server.URL+"/v1"),
 					compat.WithAPIKey("test-key"),
 					compat.WithModel("llama3"),
+				)
+			case "azure":
+				p = azure.New(
+					azure.WithEndpoint(server.URL),
+					azure.WithDeployment("test-deployment"),
+					azure.WithAPIKey("test-key"),
 				)
 			}
 
@@ -451,6 +499,8 @@ func TestProvider_EmptyMessages(t *testing.T) {
 				p = ollama.New(ollama.WithBaseURL(server.URL))
 			case "vllm":
 				p = compat.New(compat.WithName("vllm"), compat.WithBaseURL(server.URL+"/v1"), compat.WithAPIKey("test"))
+			case "azure":
+				p = azure.New(azure.WithEndpoint(server.URL), azure.WithDeployment("test-deployment"), azure.WithAPIKey("test"))
 			}
 
 			req := &llmtrace.Request{
@@ -508,6 +558,13 @@ func TestProvider_ConcurrentRequests(t *testing.T) {
 						},
 						"usage": map[string]int{"total_tokens": 1},
 					}
+				case "azure":
+					resp = map[string]any{
+						"choices": []map[string]any{
+							{"message": map[string]string{"content": "ok"}, "finish_reason": "stop"},
+						},
+						"usage": map[string]int{"total_tokens": 1},
+					}
 				}
 				w.Header().Set("Content-Type", "application/json")
 				json.NewEncoder(w).Encode(resp)
@@ -526,6 +583,8 @@ func TestProvider_ConcurrentRequests(t *testing.T) {
 				p = ollama.New(ollama.WithBaseURL(server.URL))
 			case "vllm":
 				p = compat.New(compat.WithName("vllm"), compat.WithBaseURL(server.URL+"/v1"), compat.WithAPIKey("test"))
+			case "azure":
+				p = azure.New(azure.WithEndpoint(server.URL), azure.WithDeployment("test-deployment"), azure.WithAPIKey("test"))
 			}
 
 			// Run sequential requests (not parallel to avoid server closing early)
