@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -898,3 +899,228 @@ func (m *mockSlogProvider) Stream(ctx context.Context, req *Request) (<-chan Str
 
 func (m *mockSlogProvider) DefaultModel() string   { return "mock-model" }
 func (m *mockSlogProvider) SupportsStreaming() bool { return true }
+
+
+// --- Sanitizer integration tests ---
+
+func TestSlog_SanitizeErrorMessages(t *testing.T) {
+	handler := newTestHandler()
+	logger := slog.New(handler)
+	cfg := DefaultSlogConfig()
+	cfg.Logger = logger
+	// SanitizeContent is true by default
+
+	mw := WithSlog(cfg)
+	// Simulate an error that contains an API key
+	fn := mw(func(ctx context.Context, req *Request) (*Response, error) {
+		return nil, errors.New("authentication failed: api_key = abcdefghijklmnop1234")
+	})
+
+	req := &Request{
+		Model:    "gpt-4o",
+		Messages: []Message{{Role: RoleUser, Content: "Hello"}},
+	}
+
+	_, _ = fn(context.Background(), req)
+
+	errAttrs := handler.getAttrs("llm request failed")
+	errMsg, ok := errAttrs["error"].(string)
+	if !ok {
+		t.Fatal("expected error attribute to be a string")
+	}
+	if strings.Contains(errMsg, "abcdefghijklmnop1234") {
+		t.Errorf("API key not sanitized in error message: %q", errMsg)
+	}
+	if !strings.Contains(errMsg, "[API_KEY_REDACTED]") {
+		t.Errorf("expected [API_KEY_REDACTED] in sanitized error, got %q", errMsg)
+	}
+}
+
+func TestSlog_SanitizeDisabled(t *testing.T) {
+	handler := newTestHandler()
+	logger := slog.New(handler)
+	cfg := SlogConfig{
+		Logger:          logger,
+		Level:           slog.LevelInfo,
+		ErrorLevel:      slog.LevelError,
+		LogRequest:      true,
+		LogResponse:     true,
+		LogErrors:       true,
+		SanitizeContent: false,
+	}
+
+	mw := WithSlog(cfg)
+	fn := mw(func(ctx context.Context, req *Request) (*Response, error) {
+		return nil, errors.New("authentication failed: api_key = abcdefghijklmnop1234")
+	})
+
+	req := &Request{
+		Model:    "gpt-4o",
+		Messages: []Message{{Role: RoleUser, Content: "Hello"}},
+	}
+
+	_, _ = fn(context.Background(), req)
+
+	errAttrs := handler.getAttrs("llm request failed")
+	errMsg, ok := errAttrs["error"].(string)
+	if !ok {
+		t.Fatal("expected error attribute to be a string")
+	}
+	// Without sanitization, the original error message should be preserved
+	if !strings.Contains(errMsg, "abcdefghijklmnop1234") {
+		t.Errorf("expected unsanitized error message, got %q", errMsg)
+	}
+}
+
+func TestSlog_CustomSanitizer(t *testing.T) {
+	handler := newTestHandler()
+	logger := slog.New(handler)
+
+	// Create a sanitizer with a custom rule that masks employee IDs
+	customSanitizer := NewSanitizer(WithCustomRules(SanitizeRule{
+		Name:        "employee_id",
+		Pattern:     regexp.MustCompile(`EMP-\d{6}`),
+		Replacement: "[EMP_ID_REDACTED]",
+	}))
+
+	cfg := SlogConfig{
+		Logger:          logger,
+		Level:           slog.LevelInfo,
+		ErrorLevel:      slog.LevelError,
+		LogRequest:      true,
+		LogResponse:     true,
+		LogErrors:       true,
+		SanitizeContent: true,
+		Sanitizer:       customSanitizer,
+	}
+
+	mw := WithSlog(cfg)
+	fn := mw(func(ctx context.Context, req *Request) (*Response, error) {
+		return nil, errors.New("unauthorized access by EMP-123456")
+	})
+
+	req := &Request{
+		Model:    "gpt-4o",
+		Messages: []Message{{Role: RoleUser, Content: "Hello"}},
+	}
+
+	_, _ = fn(context.Background(), req)
+
+	errAttrs := handler.getAttrs("llm request failed")
+	errMsg, ok := errAttrs["error"].(string)
+	if !ok {
+		t.Fatal("expected error attribute to be a string")
+	}
+	if strings.Contains(errMsg, "EMP-123456") {
+		t.Errorf("employee ID not sanitized: %q", errMsg)
+	}
+	if !strings.Contains(errMsg, "[EMP_ID_REDACTED]") {
+		t.Errorf("expected [EMP_ID_REDACTED] in output, got %q", errMsg)
+	}
+}
+
+func TestSlog_SanitizeBearerTokenInError(t *testing.T) {
+	handler := newTestHandler()
+	logger := slog.New(handler)
+	cfg := DefaultSlogConfig()
+	cfg.Logger = logger
+
+	mw := WithSlog(cfg)
+	longToken := "Bearer " + "abcdefghijklmnopqrstuvwxyz0123456789"
+	fn := mw(func(ctx context.Context, req *Request) (*Response, error) {
+		return nil, errors.New("invalid token: " + longToken)
+	})
+
+	req := &Request{
+		Model:    "gpt-4o",
+		Messages: []Message{{Role: RoleUser, Content: "Hello"}},
+	}
+
+	_, _ = fn(context.Background(), req)
+
+	errAttrs := handler.getAttrs("llm request failed")
+	errMsg := errAttrs["error"].(string)
+	if strings.Contains(errMsg, "abcdefghijklmnopqrstuvwxyz0123456789") {
+		t.Errorf("Bearer token not sanitized in error: %q", errMsg)
+	}
+	if !strings.Contains(errMsg, "[BEARER_REDACTED]") {
+		t.Errorf("expected [BEARER_REDACTED] in output, got %q", errMsg)
+	}
+}
+
+
+func TestStreamSlog_SanitizeStreamError(t *testing.T) {
+	handler := newTestHandler()
+	logger := slog.New(handler)
+	cfg := DefaultSlogConfig()
+	cfg.Logger = logger
+
+	mw := WithStreamSlog(cfg)
+	streamFn := mw(func(ctx context.Context, req *Request) (<-chan StreamChunk, error) {
+		ch := make(chan StreamChunk, 2)
+		go func() {
+			defer close(ch)
+			ch <- StreamChunk{Content: "Hello"}
+			ch <- StreamChunk{Error: errors.New("stream error: api_key = abcdefghijklmnop1234 leaked")}
+		}()
+		return ch, nil
+	})
+
+	req := &Request{
+		Model:    "gpt-4o",
+		Messages: []Message{{Role: RoleUser, Content: "Hello"}},
+	}
+
+	ch, err := streamFn(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	for range ch {
+	}
+
+	time.Sleep(20 * time.Millisecond)
+
+	errAttrs := handler.getAttrs("llm stream error")
+	errMsg, ok := errAttrs["error"].(string)
+	if !ok {
+		t.Fatal("expected error attribute to be a string")
+	}
+	if strings.Contains(errMsg, "abcdefghijklmnop1234") {
+		t.Errorf("API key not sanitized in stream error: %q", errMsg)
+	}
+	if !strings.Contains(errMsg, "[API_KEY_REDACTED]") {
+		t.Errorf("expected [API_KEY_REDACTED] in stream error, got %q", errMsg)
+	}
+}
+
+func TestStreamSlog_SanitizeStartError(t *testing.T) {
+	handler := newTestHandler()
+	logger := slog.New(handler)
+	cfg := DefaultSlogConfig()
+	cfg.Logger = logger
+
+	mw := WithStreamSlog(cfg)
+	longKey := "sk-proj-" + "abcdefghijklmnopqrstuvwxyz0123456"
+	streamFn := mw(func(ctx context.Context, req *Request) (<-chan StreamChunk, error) {
+		return nil, errors.New("connection failed: api_key = " + longKey)
+	})
+
+	req := &Request{
+		Model:    "gpt-4o",
+		Messages: []Message{{Role: RoleUser, Content: "Hello"}},
+	}
+
+	_, _ = streamFn(context.Background(), req)
+
+	errAttrs := handler.getAttrs("llm stream failed")
+	errMsg, ok := errAttrs["error"].(string)
+	if !ok {
+		t.Fatal("expected error attribute to be a string")
+	}
+	if strings.Contains(errMsg, "abcdefghijklmnopqrstuvwxyz0123456") {
+		t.Errorf("OpenAI key not sanitized in stream start error: %q", errMsg)
+	}
+	if !strings.Contains(errMsg, "[OPENAI_KEY_REDACTED]") {
+		t.Errorf("expected [OPENAI_KEY_REDACTED] in output, got %q", errMsg)
+	}
+}
