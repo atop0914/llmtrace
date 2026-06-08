@@ -31,10 +31,16 @@ type SlogConfig struct {
 	// Default: true
 	LogErrors bool
 
-	// SanitizeContent enables sanitization of message content in logs.
-	// When true, only the message count is logged, not the content.
+	// SanitizeContent enables sanitization of sensitive data in logs.
+	// When true, error messages and string attributes are passed through
+	// the Sanitizer to redact API keys, tokens, emails, and other PII.
 	// Default: true
 	SanitizeContent bool
+
+	// Sanitizer is the sanitizer instance to use for redacting sensitive data.
+	// If nil and SanitizeContent is true, a default Sanitizer is created.
+	// Set to nil explicitly with SanitizeContent=false to disable.
+	Sanitizer *Sanitizer
 }
 
 // DefaultSlogConfig returns a SlogConfig with sensible defaults.
@@ -47,6 +53,37 @@ func DefaultSlogConfig() SlogConfig {
 		LogErrors:       true,
 		SanitizeContent: true,
 	}
+}
+
+// getSanitizer returns the configured sanitizer or a default one.
+func (c SlogConfig) getSanitizer() *Sanitizer {
+	if c.Sanitizer != nil {
+		return c.Sanitizer
+	}
+	return NewSanitizer()
+}
+
+// sanitizeAttr sanitizes a string slog attribute if SanitizeContent is enabled.
+func (c SlogConfig) sanitizeAttr(a slog.Attr) slog.Attr {
+	if !c.SanitizeContent {
+		return a
+	}
+	if a.Value.Kind() == slog.KindString {
+		sanitized := c.getSanitizer().Sanitize(a.Value.String())
+		return slog.String(a.Key, sanitized)
+	}
+	return a
+}
+
+// sanitizeAttrs sanitizes all string attributes in a slice.
+func (c SlogConfig) sanitizeAttrs(attrs []slog.Attr) []slog.Attr {
+	if !c.SanitizeContent {
+		return attrs
+	}
+	for i := range attrs {
+		attrs[i] = c.sanitizeAttr(attrs[i])
+	}
+	return attrs
 }
 
 // WithSlog returns a Middleware that logs LLM calls using structured logging.
@@ -86,10 +123,14 @@ func WithSlog(cfg SlogConfig) Middleware {
 
 			// Log errors
 			if err != nil && cfg.LogErrors {
+				errMsg := err.Error()
+				if cfg.SanitizeContent {
+					errMsg = cfg.getSanitizer().Sanitize(errMsg)
+				}
 				errorAttrs := []slog.Attr{
 					slog.String("model", req.Model),
 					slog.Duration("latency", latency),
-					slog.String("error", err.Error()),
+					slog.String("error", errMsg),
 				}
 				// Add provider error details if available
 				if pe, ok := err.(*ProviderError); ok {
@@ -117,6 +158,9 @@ func WithSlog(cfg SlogConfig) Middleware {
 				}
 				if resp.ID != "" {
 					respAttrs = append(respAttrs, slog.String("response_id", resp.ID))
+				}
+				if cfg.SanitizeContent {
+					respAttrs = cfg.sanitizeAttrs(respAttrs)
 				}
 				logger.LogAttrs(ctx, cfg.Level, "llm request completed", respAttrs...)
 			}
@@ -159,9 +203,13 @@ func WithStreamSlog(cfg SlogConfig) StreamMiddleware {
 			ch, err := next(ctx, req)
 			if err != nil {
 				if cfg.LogErrors {
+					errMsg := err.Error()
+					if cfg.SanitizeContent {
+						errMsg = cfg.getSanitizer().Sanitize(errMsg)
+					}
 					logger.LogAttrs(ctx, cfg.ErrorLevel, "llm stream failed",
 						slog.String("model", req.Model),
-						slog.String("error", err.Error()),
+						slog.String("error", errMsg),
 					)
 				}
 				return nil, err
@@ -188,11 +236,15 @@ func WithStreamSlog(cfg SlogConfig) StreamMiddleware {
 				latency := time.Since(start)
 
 				if streamErr != nil && cfg.LogErrors {
+					errMsg := streamErr.Error()
+					if cfg.SanitizeContent {
+						errMsg = cfg.getSanitizer().Sanitize(errMsg)
+					}
 					logger.LogAttrs(ctx, cfg.ErrorLevel, "llm stream error",
 						slog.String("model", req.Model),
 						slog.Duration("latency", latency),
 						slog.Int("chunks_received", chunkCount),
-						slog.String("error", streamErr.Error()),
+						slog.String("error", errMsg),
 					)
 				} else if cfg.LogResponse {
 					attrs := []slog.Attr{
