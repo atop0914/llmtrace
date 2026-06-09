@@ -118,9 +118,9 @@ type AlertThreshold struct {
 // BudgetTracker tracks spending against budgets and fires alerts.
 // It is safe for concurrent use.
 type BudgetTracker struct {
-	mu       sync.RWMutex
-	budgets  []*trackedBudget
-	clock    func() time.Time // for testing; defaults to time.Now
+	mu      sync.RWMutex
+	budgets []*trackedBudget
+	clock   func() time.Time // for testing; defaults to time.Now
 }
 
 type trackedBudget struct {
