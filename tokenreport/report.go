@@ -154,13 +154,13 @@ func (r Report) String() string {
 	var sb strings.Builder
 
 	sb.WriteString("=== LLM Token Usage Report ===\n")
-	sb.WriteString(fmt.Sprintf("Generated: %s\n", r.GeneratedAt.Format(time.RFC3339)))
-	sb.WriteString(fmt.Sprintf("Window:    %s\n", r.Window))
+	fmt.Fprintf(&sb, "Generated: %s\n", r.GeneratedAt.Format(time.RFC3339))
+	fmt.Fprintf(&sb, "Window:    %s\n", r.Window)
 	if !r.TimeRange.Start.IsZero() {
-		sb.WriteString(fmt.Sprintf("Period:    %s → %s\n",
+		fmt.Fprintf(&sb, "Period:    %s → %s\n",
 			r.TimeRange.Start.Format("2006-01-02"),
 			r.TimeRange.End.Format("2006-01-02"),
-		))
+		)
 	}
 	sb.WriteString("\n")
 

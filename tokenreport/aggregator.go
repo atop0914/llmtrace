@@ -157,7 +157,7 @@ func (a *Aggregator) ingestOne(rec llmtrace.TraceRecord) {
 	accum := accumFromRecord(rec)
 
 	// Update bucket totals
-	bucket.DimensionAccum.Add(accum)
+	bucket.Add(accum)
 
 	// Update bucket by-provider
 	bp := bucket.ByProvider[rec.Provider]
