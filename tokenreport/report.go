@@ -166,15 +166,15 @@ func (r Report) String() string {
 
 	// Totals
 	sb.WriteString("--- Totals ---\n")
-	sb.WriteString(fmt.Sprintf("Requests:      %d\n", r.Total.Requests))
-	sb.WriteString(fmt.Sprintf("Successes:     %d\n", r.Total.Successes))
-	sb.WriteString(fmt.Sprintf("Errors:        %d\n", r.Total.Errors))
-	sb.WriteString(fmt.Sprintf("Input Tokens:  %d\n", r.Total.InputTokens))
-	sb.WriteString(fmt.Sprintf("Output Tokens: %d\n", r.Total.OutputTokens))
-	sb.WriteString(fmt.Sprintf("Total Tokens:  %d\n", r.Total.TotalTokens))
-	sb.WriteString(fmt.Sprintf("Cost (USD):    $%.4f\n", r.Total.CostUSD))
+	fmt.Fprintf(&sb, "Requests:      %d\n", r.Total.Requests)
+	fmt.Fprintf(&sb, "Successes:     %d\n", r.Total.Successes)
+	fmt.Fprintf(&sb, "Errors:        %d\n", r.Total.Errors)
+	fmt.Fprintf(&sb, "Input Tokens:  %d\n", r.Total.InputTokens)
+	fmt.Fprintf(&sb, "Output Tokens: %d\n", r.Total.OutputTokens)
+	fmt.Fprintf(&sb, "Total Tokens:  %d\n", r.Total.TotalTokens)
+	fmt.Fprintf(&sb, "Cost (USD):    $%.4f\n", r.Total.CostUSD)
 	if r.Total.LatencyCount > 0 {
-		sb.WriteString(fmt.Sprintf("Avg Latency:   %.1f ms\n", r.Total.AvgLatencyMS()))
+		fmt.Fprintf(&sb, "Avg Latency:   %.1f ms\n", r.Total.AvgLatencyMS())
 	}
 	sb.WriteString("\n")
 
@@ -182,8 +182,8 @@ func (r Report) String() string {
 	if len(r.ByProvider) > 0 {
 		sb.WriteString("--- By Provider ---\n")
 		for _, p := range r.ByProvider {
-			sb.WriteString(fmt.Sprintf("  %-15s  reqs=%d  tokens=%d  cost=$%.4f  errors=%d\n",
-				p.Provider, p.Requests, p.TotalTokens, p.CostUSD, p.Errors))
+			fmt.Fprintf(&sb, "  %-15s  reqs=%d  tokens=%d  cost=$%.4f  errors=%d\n",
+				p.Provider, p.Requests, p.TotalTokens, p.CostUSD, p.Errors)
 		}
 		sb.WriteString("\n")
 	}
@@ -192,8 +192,8 @@ func (r Report) String() string {
 	if len(r.TopModelsByTokens) > 0 {
 		sb.WriteString("--- Top Models by Tokens ---\n")
 		for i, m := range r.TopModelsByTokens {
-			sb.WriteString(fmt.Sprintf("  %d. %-30s  tokens=%d  reqs=%d  avg_latency=%.1fms\n",
-				i+1, m.Model, m.TotalTokens, m.Requests, m.AvgLatencyMS()))
+			fmt.Fprintf(&sb, "  %d. %-30s  tokens=%d  reqs=%d  avg_latency=%.1fms\n",
+				i+1, m.Model, m.TotalTokens, m.Requests, m.AvgLatencyMS())
 		}
 		sb.WriteString("\n")
 	}
@@ -202,18 +202,18 @@ func (r Report) String() string {
 	if len(r.TopModelsByCost) > 0 {
 		sb.WriteString("--- Top Models by Cost ---\n")
 		for i, m := range r.TopModelsByCost {
-			sb.WriteString(fmt.Sprintf("  %d. %-30s  cost=$%.4f  tokens=%d\n",
-				i+1, m.Model, m.CostUSD, m.TotalTokens))
+			fmt.Fprintf(&sb, "  %d. %-30s  cost=$%.4f  tokens=%d\n",
+				i+1, m.Model, m.CostUSD, m.TotalTokens)
 		}
 		sb.WriteString("\n")
 	}
 
 	// Time series summary
 	if len(r.TimeSeries) > 0 {
-		sb.WriteString(fmt.Sprintf("--- Time Series (%d windows) ---\n", len(r.TimeSeries)))
+		fmt.Fprintf(&sb, "--- Time Series (%d windows) ---\n", len(r.TimeSeries))
 		for _, b := range r.TimeSeries {
-			sb.WriteString(fmt.Sprintf("  %s  reqs=%d  tokens=%d  cost=$%.4f\n",
-				b.Start.Format("2006-01-02 15:04"), b.Requests, b.TotalTokens, b.CostUSD))
+			fmt.Fprintf(&sb, "  %s  reqs=%d  tokens=%d  cost=$%.4f\n",
+				b.Start.Format("2006-01-02 15:04"), b.Requests, b.TotalTokens, b.CostUSD)
 		}
 	}
 
