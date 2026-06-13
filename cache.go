@@ -224,17 +224,17 @@ func DefaultCacheKey(req *Request) string {
 
 	if req.Temperature != nil {
 		b.WriteString("|temp=")
-		b.WriteString(fmt.Sprintf("%.4f", *req.Temperature))
+		fmt.Fprintf(&b, "%.4f", *req.Temperature)
 	}
 
 	if req.TopP != nil {
 		b.WriteString("|top_p=")
-		b.WriteString(fmt.Sprintf("%.4f", *req.TopP))
+		fmt.Fprintf(&b, "%.4f", *req.TopP)
 	}
 
 	if req.MaxTokens != nil {
 		b.WriteString("|max_tokens=")
-		b.WriteString(fmt.Sprintf("%d", *req.MaxTokens))
+		fmt.Fprintf(&b, "%d", *req.MaxTokens)
 	}
 
 	if len(req.Stop) > 0 {
