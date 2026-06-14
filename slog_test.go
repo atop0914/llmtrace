@@ -897,9 +897,8 @@ func (m *mockSlogProvider) Stream(ctx context.Context, req *Request) (<-chan Str
 	return ch, nil
 }
 
-func (m *mockSlogProvider) DefaultModel() string   { return "mock-model" }
+func (m *mockSlogProvider) DefaultModel() string    { return "mock-model" }
 func (m *mockSlogProvider) SupportsStreaming() bool { return true }
-
 
 // --- Sanitizer integration tests ---
 
@@ -1047,7 +1046,6 @@ func TestSlog_SanitizeBearerTokenInError(t *testing.T) {
 		t.Errorf("expected [BEARER_REDACTED] in output, got %q", errMsg)
 	}
 }
-
 
 func TestStreamSlog_SanitizeStreamError(t *testing.T) {
 	handler := newTestHandler()

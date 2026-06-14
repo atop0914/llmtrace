@@ -21,9 +21,9 @@ func TestProvider_Name(t *testing.T) {
 
 func TestProvider_DefaultModel(t *testing.T) {
 	tests := []struct {
-		name   string
-		opts   []Option
-		want   string
+		name string
+		opts []Option
+		want string
 	}{
 		{"default", nil, DefaultModel},
 		{"custom", []Option{WithModel("gpt-4")}, "gpt-4"},

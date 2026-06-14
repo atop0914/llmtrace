@@ -98,11 +98,11 @@ func TestHistogram(t *testing.T) {
 	h := NewHistogram([]float64{0.1, 0.5, 1.0})
 
 	// Observe some values
-	h.Observe(0.05)  // <= 0.1
-	h.Observe(0.3)   // <= 0.5
-	h.Observe(0.8)   // <= 1.0
-	h.Observe(2.0)   // > all buckets (only in +Inf)
-	h.Observe(0.1)   // <= 0.1
+	h.Observe(0.05) // <= 0.1
+	h.Observe(0.3)  // <= 0.5
+	h.Observe(0.8)  // <= 1.0
+	h.Observe(2.0)  // > all buckets (only in +Inf)
+	h.Observe(0.1)  // <= 0.1
 
 	buckets, count, sum := h.Snapshot()
 

@@ -23,9 +23,9 @@ func TestCostCalculator_DefaultPrices(t *testing.T) {
 	c := NewCostCalculator()
 
 	tests := []struct {
-		model       string
-		wantInput   float64
-		wantOutput  float64
+		model      string
+		wantInput  float64
+		wantOutput float64
 	}{
 		{"gpt-4o", 0.0025, 0.01},
 		{"gpt-4o-mini", 0.00015, 0.0006},

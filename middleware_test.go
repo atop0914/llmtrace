@@ -168,7 +168,7 @@ func TestWithCompleteHook_WithError(t *testing.T) {
 
 func TestWithTiming(t *testing.T) {
 	type timingResult struct {
-		model  string
+		model    string
 		duration float64
 	}
 	var mu sync.Mutex

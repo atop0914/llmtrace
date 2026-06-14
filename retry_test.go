@@ -273,8 +273,8 @@ type testHTTPStatusError struct {
 	msg  string
 }
 
-func (e *testHTTPStatusError) Error() string     { return e.msg }
-func (e *testHTTPStatusError) StatusCode() int    { return e.code }
+func (e *testHTTPStatusError) Error() string   { return e.msg }
+func (e *testHTTPStatusError) StatusCode() int { return e.code }
 
 func TestIsTransientError_HTTPStatus(t *testing.T) {
 	tests := []struct {

@@ -20,9 +20,9 @@ type stubProvider struct {
 	streamFunc    func(ctx context.Context, req *Request) (<-chan StreamChunk, error)
 }
 
-func (s *stubProvider) Name() string                                { return s.name }
-func (s *stubProvider) DefaultModel() string                        { return s.defaultModel }
-func (s *stubProvider) SupportsStreaming() bool                     { return s.supportStream }
+func (s *stubProvider) Name() string            { return s.name }
+func (s *stubProvider) DefaultModel() string    { return s.defaultModel }
+func (s *stubProvider) SupportsStreaming() bool { return s.supportStream }
 func (s *stubProvider) Complete(ctx context.Context, req *Request) (*Response, error) {
 	if s.completeFunc != nil {
 		return s.completeFunc(ctx, req)

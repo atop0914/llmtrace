@@ -398,7 +398,7 @@ func TestCircuitBreaker_OnStateChange(t *testing.T) {
 	cb := NewCircuitBreaker(CircuitBreakerConfig{
 		FailureThreshold: 2,
 		SuccessThreshold: 1,
-		Timeout:         50 * time.Millisecond,
+		Timeout:          50 * time.Millisecond,
 		OnStateChange: func(from, to CircuitState) {
 			mu.Lock()
 			transitions = append(transitions, from.String()+"->"+to.String())
@@ -481,9 +481,9 @@ type mockCircuitProvider struct {
 	streamFunc   func(ctx context.Context, req *Request) (<-chan StreamChunk, error)
 }
 
-func (m *mockCircuitProvider) Name() string              { return "mock" }
-func (m *mockCircuitProvider) DefaultModel() string       { return "mock-model" }
-func (m *mockCircuitProvider) SupportsStreaming() bool    { return true }
+func (m *mockCircuitProvider) Name() string            { return "mock" }
+func (m *mockCircuitProvider) DefaultModel() string    { return "mock-model" }
+func (m *mockCircuitProvider) SupportsStreaming() bool { return true }
 func (m *mockCircuitProvider) Complete(ctx context.Context, req *Request) (*Response, error) {
 	if m.completeFunc != nil {
 		return m.completeFunc(ctx, req)
@@ -503,7 +503,7 @@ func (m *mockCircuitProvider) Stream(ctx context.Context, req *Request) (<-chan 
 func TestWithCircuitBreaker_Success(t *testing.T) {
 	cb := NewCircuitBreaker(CircuitBreakerConfig{
 		FailureThreshold: 3,
-		Timeout:         1 * time.Second,
+		Timeout:          1 * time.Second,
 	})
 
 	provider := &mockCircuitProvider{}
@@ -527,7 +527,7 @@ func TestWithCircuitBreaker_Success(t *testing.T) {
 func TestWithCircuitBreaker_FailureTrips(t *testing.T) {
 	cb := NewCircuitBreaker(CircuitBreakerConfig{
 		FailureThreshold: 2,
-		Timeout:         1 * time.Hour,
+		Timeout:          1 * time.Hour,
 	})
 
 	provider := &mockCircuitProvider{
@@ -558,7 +558,7 @@ func TestWithCircuitBreaker_FailureTrips(t *testing.T) {
 func TestWithStreamCircuitBreaker_Success(t *testing.T) {
 	cb := NewCircuitBreaker(CircuitBreakerConfig{
 		FailureThreshold: 3,
-		Timeout:         1 * time.Second,
+		Timeout:          1 * time.Second,
 	})
 
 	provider := &mockCircuitProvider{}
@@ -586,7 +586,7 @@ func TestWithStreamCircuitBreaker_Success(t *testing.T) {
 func TestWithStreamCircuitBreaker_InitError(t *testing.T) {
 	cb := NewCircuitBreaker(CircuitBreakerConfig{
 		FailureThreshold: 2,
-		Timeout:         1 * time.Hour,
+		Timeout:          1 * time.Hour,
 	})
 
 	provider := &mockCircuitProvider{
@@ -609,7 +609,7 @@ func TestWithStreamCircuitBreaker_InitError(t *testing.T) {
 func TestWithStreamCircuitBreaker_StreamError(t *testing.T) {
 	cb := NewCircuitBreaker(CircuitBreakerConfig{
 		FailureThreshold: 2,
-		Timeout:         1 * time.Hour,
+		Timeout:          1 * time.Hour,
 	})
 
 	provider := &mockCircuitProvider{
@@ -645,7 +645,7 @@ func TestWithStreamCircuitBreaker_StreamError(t *testing.T) {
 func TestWithCircuitBreaker_RejectsWhenOpen(t *testing.T) {
 	cb := NewCircuitBreaker(CircuitBreakerConfig{
 		FailureThreshold: 2,
-		Timeout:         1 * time.Hour,
+		Timeout:          1 * time.Hour,
 	})
 
 	// Trip the breaker
@@ -667,7 +667,7 @@ func TestWithCircuitBreaker_RejectsWhenOpen(t *testing.T) {
 func TestWithStreamCircuitBreaker_RejectsWhenOpen(t *testing.T) {
 	cb := NewCircuitBreaker(CircuitBreakerConfig{
 		FailureThreshold: 2,
-		Timeout:         1 * time.Hour,
+		Timeout:          1 * time.Hour,
 	})
 
 	cb.RecordFailure()
