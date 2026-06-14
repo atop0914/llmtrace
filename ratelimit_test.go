@@ -232,7 +232,7 @@ func TestWithRateLimit_Middleware(t *testing.T) {
 
 func TestWithRateLimit_Middleware_Blocks(t *testing.T) {
 	lim := NewLimiter(100, 1) // burst 1
-	lim.Allow()                // exhaust
+	lim.Allow()               // exhaust
 
 	inner := func(ctx context.Context, req *Request) (*Response, error) {
 		return &Response{Content: "ok"}, nil

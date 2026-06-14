@@ -14,15 +14,15 @@ func TestDefaultCacheKey(t *testing.T) {
 	maxTok := 100
 
 	req1 := &Request{
-		Model:    "gpt-4o",
-		Messages: []Message{{Role: RoleUser, Content: "Hello"}},
+		Model:       "gpt-4o",
+		Messages:    []Message{{Role: RoleUser, Content: "Hello"}},
 		Temperature: &temp,
 		MaxTokens:   &maxTok,
 	}
 
 	req2 := &Request{
-		Model:    "gpt-4o",
-		Messages: []Message{{Role: RoleUser, Content: "Hello"}},
+		Model:       "gpt-4o",
+		Messages:    []Message{{Role: RoleUser, Content: "Hello"}},
 		Temperature: &temp,
 		MaxTokens:   &maxTok,
 	}
@@ -36,8 +36,8 @@ func TestDefaultCacheKey(t *testing.T) {
 
 	// Different content should produce different key
 	req3 := &Request{
-		Model:    "gpt-4o",
-		Messages: []Message{{Role: RoleUser, Content: "Different"}},
+		Model:       "gpt-4o",
+		Messages:    []Message{{Role: RoleUser, Content: "Different"}},
 		Temperature: &temp,
 	}
 	key3 := DefaultCacheKey(req3)
@@ -47,8 +47,8 @@ func TestDefaultCacheKey(t *testing.T) {
 
 	// Different model should produce different key
 	req4 := &Request{
-		Model:    "claude-3-opus",
-		Messages: []Message{{Role: RoleUser, Content: "Hello"}},
+		Model:       "claude-3-opus",
+		Messages:    []Message{{Role: RoleUser, Content: "Hello"}},
 		Temperature: &temp,
 	}
 	key4 := DefaultCacheKey(req4)
@@ -60,14 +60,14 @@ func TestDefaultCacheKey(t *testing.T) {
 func TestDefaultCacheKey_StopOrder(t *testing.T) {
 	// Stop sequences should be order-independent
 	req1 := &Request{
-		Model: "gpt-4o",
+		Model:    "gpt-4o",
 		Messages: []Message{{Role: RoleUser, Content: "test"}},
-		Stop:  []string{"stop1", "stop2"},
+		Stop:     []string{"stop1", "stop2"},
 	}
 	req2 := &Request{
-		Model: "gpt-4o",
+		Model:    "gpt-4o",
 		Messages: []Message{{Role: RoleUser, Content: "test"}},
-		Stop:  []string{"stop2", "stop1"},
+		Stop:     []string{"stop2", "stop1"},
 	}
 	key1 := DefaultCacheKey(req1)
 	key2 := DefaultCacheKey(req2)
@@ -697,8 +697,8 @@ func TestResponseCache_NoTTL(t *testing.T) {
 
 func BenchmarkDefaultCacheKey(b *testing.B) {
 	req := &Request{
-		Model:    "gpt-4o",
-		Messages: []Message{{Role: RoleUser, Content: "Hello, how are you today?"}},
+		Model:       "gpt-4o",
+		Messages:    []Message{{Role: RoleUser, Content: "Hello, how are you today?"}},
 		Temperature: Float64Ptr(0.7),
 		MaxTokens:   IntPtr(100),
 		Stop:        []string{"END", "STOP"},

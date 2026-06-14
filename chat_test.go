@@ -6,23 +6,23 @@ import (
 	"sync"
 	"testing"
 
+	"go.opentelemetry.io/otel"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
-	"go.opentelemetry.io/otel"
 )
 
 // mockProvider implements Provider for testing.
 type mockProvider struct {
-	name            string
-	defaultModel    string
-	supportsStream  bool
-	completeFunc    func(ctx context.Context, req *Request) (*Response, error)
-	streamFunc      func(ctx context.Context, req *Request) (<-chan StreamChunk, error)
+	name           string
+	defaultModel   string
+	supportsStream bool
+	completeFunc   func(ctx context.Context, req *Request) (*Response, error)
+	streamFunc     func(ctx context.Context, req *Request) (<-chan StreamChunk, error)
 }
 
-func (m *mockProvider) Name() string             { return m.name }
-func (m *mockProvider) DefaultModel() string      { return m.defaultModel }
-func (m *mockProvider) SupportsStreaming() bool    { return m.supportsStream }
+func (m *mockProvider) Name() string            { return m.name }
+func (m *mockProvider) DefaultModel() string    { return m.defaultModel }
+func (m *mockProvider) SupportsStreaming() bool { return m.supportsStream }
 func (m *mockProvider) Complete(ctx context.Context, req *Request) (*Response, error) {
 	if m.completeFunc != nil {
 		return m.completeFunc(ctx, req)

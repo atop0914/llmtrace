@@ -215,9 +215,9 @@ func TestProvider_CompleteRoundTrip(t *testing.T) {
 						"role":    "assistant",
 						"content": "Hello from Ollama!",
 					},
-					"done":               true,
-					"prompt_eval_count":  10,
-					"eval_count":         5,
+					"done":              true,
+					"prompt_eval_count": 10,
+					"eval_count":        5,
 				}
 				w.Header().Set("Content-Type", "application/json")
 				json.NewEncoder(w).Encode(resp)
@@ -534,9 +534,9 @@ func TestProvider_ConcurrentRequests(t *testing.T) {
 					}
 				case "anthropic":
 					resp = map[string]any{
-						"content":      []map[string]string{{"type": "text", "text": "ok"}},
-						"stop_reason":  "end_turn",
-						"usage":        map[string]int{"input_tokens": 1, "output_tokens": 1},
+						"content":     []map[string]string{{"type": "text", "text": "ok"}},
+						"stop_reason": "end_turn",
+						"usage":       map[string]int{"input_tokens": 1, "output_tokens": 1},
 					}
 				case "gemini":
 					resp = map[string]any{

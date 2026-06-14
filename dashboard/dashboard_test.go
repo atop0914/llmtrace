@@ -645,5 +645,3 @@ func TestHandleTraceSummary_NilStore(t *testing.T) {
 		t.Errorf("expected 0 traces, got %d", resp.TotalTraces)
 	}
 }
-
-

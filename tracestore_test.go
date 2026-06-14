@@ -28,9 +28,9 @@ func TestTraceStore_Eviction(t *testing.T) {
 
 	for i := 0; i < 5; i++ {
 		store.Add(TraceRecord{
-			Provider: fmt.Sprintf("provider-%d", i),
-			Model:    "test",
-			Status:   "success",
+			Provider:  fmt.Sprintf("provider-%d", i),
+			Model:     "test",
+			Status:    "success",
 			StartedAt: time.Now().Add(time.Duration(i) * time.Second),
 		})
 	}

@@ -359,8 +359,8 @@ func TestPercentOf(t *testing.T) {
 		{50, 100, 50},
 		{100, 100, 100},
 		{150, 100, 150},
-		{0, 0, 0},       // zero budget
-		{50, 0, 0},      // zero budget with spending
+		{0, 0, 0},  // zero budget
+		{50, 0, 0}, // zero budget with spending
 	}
 	for _, tt := range tests {
 		got := percentOf(tt.spent, tt.budget)

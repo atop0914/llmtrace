@@ -465,7 +465,7 @@ func TestSanitizer_SanitizeMap(t *testing.T) {
 	input := map[string]any{
 		"provider":    "openai",
 		"model":       "gpt-4o",
-		"api_key": "***",
+		"api_key":     "***",
 		"email":       "user@example.com",
 		"temperature": 0.7,
 		"max_tokens":  100,
@@ -635,7 +635,7 @@ func BenchmarkSanitizer_SanitizeMap(b *testing.B) {
 	input := map[string]any{
 		"provider":    "openai",
 		"model":       "gpt-4o",
-		"api_key": "***",
+		"api_key":     "***",
 		"email":       "user@example.com",
 		"temperature": 0.7,
 		"max_tokens":  100,

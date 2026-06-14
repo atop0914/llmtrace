@@ -14,9 +14,9 @@ import (
 
 	"github.com/atop0914/llmtrace"
 	"github.com/atop0914/llmtrace/provider/openai"
+	"go.opentelemetry.io/otel"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
-	"go.opentelemetry.io/otel"
 )
 
 func main() {
