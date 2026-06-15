@@ -321,7 +321,7 @@ func (a *Alerter) doRequest(ctx context.Context, ep Endpoint, body []byte) error
 		return fmt.Errorf("http request: %w", err)
 	}
 	defer resp.Body.Close()
-	io.Copy(io.Discard, resp.Body) // drain body for connection reuse
+	_, _ = io.Copy(io.Discard, resp.Body) // drain body for connection reuse
 
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		return nil
