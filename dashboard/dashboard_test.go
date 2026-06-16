@@ -350,11 +350,30 @@ func TestLandingPage(t *testing.T) {
 		t.Fatalf("expected 200, got %d", w.Code)
 	}
 	body := w.Body.String()
-	if !strings.Contains(body, "LLMTrace Dashboard") {
-		t.Error("expected LLMTrace Dashboard in body")
+	if !strings.Contains(body, "LLMTrace") {
+		t.Error("expected LLMTrace in body")
 	}
-	if !strings.Contains(body, "/api/overview") {
-		t.Error("expected API endpoint links in body")
+	if !strings.Contains(body, "app.js") {
+		t.Error("expected app.js script reference in body")
+	}
+}
+
+func TestStaticAssets(t *testing.T) {
+	reg := metrics.NewRegistry("test")
+	h := Handler(reg, Config{})
+
+	assets := []string{"/style.css", "/app.js"}
+	for _, asset := range assets {
+		req := httptest.NewRequest("GET", asset, nil)
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("%s: expected 200, got %d", asset, w.Code)
+		}
+		if w.Body.Len() == 0 {
+			t.Errorf("%s: expected non-empty body", asset)
+		}
 	}
 }
 
