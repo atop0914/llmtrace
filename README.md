@@ -18,6 +18,7 @@ LLMTrace wraps LLM client calls with OpenTelemetry spans, capturing token usage,
 - **Retry with backoff** — configurable exponential backoff for transient errors
 - **Rate limiting** — token bucket rate limiter for API call throttling
 - **Middleware pattern** — add logging, hooks, and custom interceptors
+- **Evaluation framework** — composable response quality checks (length, JSON, regex, custom)
 - **Prometheus metrics** — built-in metrics collector with `/metrics` endpoint
 - **Unified errors** — consistent error types across all providers
 - **Zero external dependencies** — only depends on OpenTelemetry
@@ -325,6 +326,60 @@ Error with provider details:
 | `LogErrors` | `bool` | `true` | Log errors with provider details |
 | `SanitizeContent` | `bool` | `true` | Only log message count, not content |
 
+## Evaluation
+
+Automatically evaluate LLM response quality with composable evaluators:
+
+```go
+import "github.com/atop0914/llmtrace/eval"
+
+// Create an evaluation suite
+suite := eval.NewSuite("quality-checks",
+    eval.MinLength(10),           // response must be at least 10 chars
+    eval.MaxLength(4000),         // response must be at most 4000 chars
+    eval.NonEmpty(),              // response must not be empty
+    eval.ValidJSON(),             // response must be valid JSON
+    eval.FinishReason("stop"),    // must finish normally
+    eval.Contains("answer"),      // must contain keyword
+    eval.RegexMatch(`\d{3}-\d{4}`), // must match pattern
+    eval.MaxLatency(5*time.Second), // must complete in 5s
+    eval.TokenLimit(1000),        // must use ≤ 1000 tokens
+    eval.Custom("no_apology", func(_ context.Context, _ *llmtrace.Request, resp *llmtrace.Response) (bool, string) {
+        ok := !strings.Contains(resp.Content, "I'm sorry")
+        return ok, "response does not contain apology"
+    }),
+)
+
+// Run as middleware (non-blocking, for monitoring)
+resp, err := tracer.Chat(ctx, req, provider,
+    llmtrace.WithCallMiddleware(suite.Middleware()),
+)
+
+// Or validate (returns error if any evaluator fails)
+result, err := suite.Validate(ctx, req, resp)
+if err != nil {
+    log.Printf("eval failed: %v", err)
+}
+```
+
+### Built-in Evaluators
+
+| Evaluator | Description |
+|-----------|-------------|
+| `MinLength(n)` | Content has at least n characters |
+| `MaxLength(n)` | Content has at most n characters |
+| `NonEmpty()` | Content is not empty/whitespace |
+| `Contains(s)` | Content contains substring (case-sensitive) |
+| `ContainsAny(s...)` | Content contains at least one substring |
+| `NotContains(s)` | Content does not contain substring |
+| `ValidJSON()` | Content is valid JSON |
+| `FinishReason(reasons...)` | Finish reason matches expected values |
+| `RegexMatch(pattern)` | Content matches regex pattern |
+| `TokenLimit(n)` | Total tokens ≤ n |
+| `MaxLatency(d)` | Latency ≤ duration |
+| `ResponseID()` | Response ID is non-empty |
+| `Custom(name, fn)` | User-defined evaluator |
+
 ## Error Handling
 
 LLMTrace provides unified error types across all providers:
@@ -462,6 +517,9 @@ Key results (Xeon Gold 6148, 2.40 GHz):
 | Chat (no middleware) | ~7,100 | — | — |
 | Chat + retry | ~10,400 | — | — |
 | ClassifyHTTPStatus | ~3 | 0 | 0 |
+| Eval.Suite.Run (8 evaluators) | ~7,700 | ~2,500 | 44 |
+| Eval.MinLength | ~450 | 40 | 2 |
+| Eval.ValidJSON | ~1,170 | 320 | 6 |
 
 ## API Reference
 

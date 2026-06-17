@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+- **Evaluation package** (`eval/`)
+  - `Evaluator` interface for composable response quality checks
+  - 13 built-in evaluators: MinLength, MaxLength, NonEmpty, Contains, ContainsAny, NotContains, ValidJSON, FinishReason, RegexMatch, TokenLimit, MaxLatency, ResponseID, Custom
+  - `Suite` for grouping and running multiple evaluators together
+  - `Suite.Validate()` returns structured errors with failed evaluator details
+  - `Suite.Middleware()` integrates with the llmtrace middleware pipeline
+  - `EvalFunc` adapter for inline evaluator creation
+  - 45 tests covering all evaluators, suite logic, middleware integration, and edge cases
+  - Benchmarks: Suite.Run ~7,700 ns/op, MinLength ~450 ns/op, ValidJSON ~1,170 ns/op
+
 ## [1.0.0] - 2026-06-02
 
 ### Added
