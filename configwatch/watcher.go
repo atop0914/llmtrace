@@ -154,8 +154,8 @@ type Watcher struct {
 	path     string
 	interval time.Duration
 
-	current  atomic.Pointer[Config]
-	hash     atomic.Value // [32]byte
+	current   atomic.Pointer[Config]
+	hash      atomic.Value // [32]byte
 	listeners []Listener
 
 	mu     sync.RWMutex
