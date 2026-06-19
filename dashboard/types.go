@@ -123,3 +123,34 @@ type TracesResponse struct {
 	Traces []TraceRecord `json:"traces"`
 	Total  int           `json:"total"`
 }
+
+// ProviderHealthResponse is the /api/providers/health response.
+type ProviderHealthResponse struct {
+	Providers []ProviderHealth `json:"providers"`
+}
+
+// ProviderHealth holds health and efficiency metrics for a single provider.
+type ProviderHealth struct {
+	Name             string             `json:"name"`
+	ErrorRate        float64            `json:"error_rate"`         // 0.0 - 1.0
+	HealthScore      float64            `json:"health_score"`       // 0 - 100
+	CostPer1KTokens  float64            `json:"cost_per_1k_tokens"` // USD
+	TokensPerSecond  float64            `json:"tokens_per_second"`  // throughput
+	LatencyP50       float64            `json:"latency_p50_ms"`
+	LatencyP95       float64            `json:"latency_p95_ms"`
+	LatencyP99       float64            `json:"latency_p99_ms"`
+	TotalRequests    int64              `json:"total_requests"`
+	TotalTokens      int64              `json:"total_tokens"`
+	TotalCostUSD     float64            `json:"total_cost_usd"`
+	Models           []ModelHealth      `json:"models"`
+	Status           string             `json:"status"` // "healthy", "degraded", "unhealthy"
+}
+
+// ModelHealth holds per-model health within a provider.
+type ModelHealth struct {
+	Model           string  `json:"model"`
+	Requests        int64   `json:"requests"`
+	ErrorRate       float64 `json:"error_rate"`
+	AvgLatencyMS    float64 `json:"avg_latency_ms"`
+	CostPer1KTokens float64 `json:"cost_per_1k_tokens"`
+}

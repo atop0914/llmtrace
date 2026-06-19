@@ -664,3 +664,148 @@ func TestHandleTraceSummary_NilStore(t *testing.T) {
 		t.Errorf("expected 0 traces, got %d", resp.TotalTraces)
 	}
 }
+
+
+func TestHandleProviderHealth(t *testing.T) {
+	reg := setupRegistry()
+	store := &mockTraceStore{
+		records: []TraceRecord{
+			{Provider: "openai", Model: "gpt-4o", Status: "success", TotalTokens: 150, CostUSD: 0.01, LatencyMS: 100},
+			{Provider: "openai", Model: "gpt-4o", Status: "success", TotalTokens: 200, CostUSD: 0.02, LatencyMS: 150},
+			{Provider: "openai", Model: "gpt-4o", Status: "error", Error: "rate limit", LatencyMS: 50},
+			{Provider: "anthropic", Model: "claude-3-opus", Status: "success", TotalTokens: 300, CostUSD: 0.03, LatencyMS: 200},
+			{Provider: "anthropic", Model: "claude-3-opus", Status: "success", TotalTokens: 250, CostUSD: 0.025, LatencyMS: 180},
+		},
+	}
+	handler := newAPIHandler(reg, store)
+
+	req := httptest.NewRequest("GET", "/api/providers/health", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp ProviderHealthResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(resp.Providers) != 2 {
+		t.Fatalf("expected 2 providers, got %d", len(resp.Providers))
+	}
+
+	// Find providers
+	provMap := make(map[string]ProviderHealth)
+	for _, p := range resp.Providers {
+		provMap[p.Name] = p
+	}
+
+	// Anthropic tests
+	anth, ok := provMap["anthropic"]
+	if !ok {
+		t.Fatal("missing anthropic provider")
+	}
+	if anth.TotalRequests != 30 {
+		t.Errorf("expected 30 requests for anthropic, got %d", anth.TotalRequests)
+	}
+	// Registry has 2 errors for anthropic (server_error), 30 requests -> ~6.67%
+	if anth.ErrorRate <= 0 || anth.ErrorRate > 0.1 {
+		t.Errorf("expected ~6.7%% error rate for anthropic, got %f", anth.ErrorRate)
+	}
+	if anth.HealthScore < 90 {
+		t.Errorf("expected high health score for anthropic, got %f", anth.HealthScore)
+	}
+	if anth.Status != "healthy" {
+		t.Errorf("expected healthy status for anthropic, got %s", anth.Status)
+	}
+	if anth.LatencyP50 <= 0 {
+		t.Error("expected positive P50 for anthropic")
+	}
+	if anth.LatencyP95 <= 0 {
+		t.Error("expected positive P95 for anthropic")
+	}
+	if anth.LatencyP99 <= 0 {
+		t.Error("expected positive P99 for anthropic")
+	}
+	if len(anth.Models) == 0 {
+		t.Error("expected non-empty models for anthropic")
+	}
+
+	// OpenAI tests
+	oai, ok := provMap["openai"]
+	if !ok {
+		t.Fatal("missing openai provider")
+	}
+	if oai.TotalRequests != 150 {
+		t.Errorf("expected 150 requests for openai, got %d", oai.TotalRequests)
+	}
+	// Both have errors from registry; verify scores are reasonable
+	if oai.HealthScore < 50 || oai.HealthScore > 100 {
+		t.Errorf("expected openai health score 50-100, got %f", oai.HealthScore)
+	}
+}
+
+func TestHandleProviderHealth_NoTraces(t *testing.T) {
+	reg := setupRegistry()
+	handler := newAPIHandler(reg, nil)
+
+	req := httptest.NewRequest("GET", "/api/providers/health", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp ProviderHealthResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(resp.Providers) != 2 {
+		t.Fatalf("expected 2 providers, got %d", len(resp.Providers))
+	}
+
+	// Should still have latency estimates from histogram fallback
+	for _, p := range resp.Providers {
+		if p.LatencyP50 <= 0 {
+			t.Errorf("expected positive P50 for %s (histogram fallback)", p.Name)
+		}
+	}
+}
+
+func TestHandleProviderHealth_EmptyRegistry(t *testing.T) {
+	reg := metrics.NewRegistry("empty")
+	handler := newAPIHandler(reg, nil)
+
+	req := httptest.NewRequest("GET", "/api/providers/health", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	var resp ProviderHealthResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Providers) != 0 {
+		t.Errorf("expected 0 providers for empty registry, got %d", len(resp.Providers))
+	}
+}
+
+func TestPercentile(t *testing.T) {
+	sorted := []float64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
+
+	if p := percentile(sorted, 50); p != 5.5 {
+		t.Errorf("expected P50=5.5, got %f", p)
+	}
+	if p := percentile(sorted, 0); p != 1 {
+		t.Errorf("expected P0=1, got %f", p)
+	}
+	if p := percentile(sorted, 100); p != 10 {
+		t.Errorf("expected P100=10, got %f", p)
+	}
+	if p := percentile(nil, 50); p != 0 {
+		t.Errorf("expected 0 for nil slice, got %f", p)
+	}
+}

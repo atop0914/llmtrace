@@ -34,6 +34,8 @@ func (h *apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.handleOverview(w, r)
 	case "/providers":
 		h.handleProviders(w, r)
+	case "/providers/health":
+		h.handleProviderHealth(w, r)
 	case "/models":
 		h.handleModels(w, r)
 	case "/latency":
@@ -536,4 +538,252 @@ func (h *apiHandler) writeJSON(w http.ResponseWriter, v interface{}) {
 func (h *apiHandler) writeError(w http.ResponseWriter, code int, msg string) {
 	w.WriteHeader(code)
 	_ = json.NewEncoder(w).Encode(map[string]string{"error": msg})
+}
+
+func (h *apiHandler) handleProviderHealth(w http.ResponseWriter, _ *http.Request) {
+	snap := h.registry.Collect()
+
+	// Build provider-level data from metrics
+	type modelHealthAccum struct {
+		requests     int64
+		tokens       int64
+		inputTokens  int64
+		outputTokens int64
+		costUSD      float64
+		errors       int64
+		latencySum   float64
+		latencyCount uint64
+	}
+
+	type provData struct {
+		requests       int64
+		tokens         int64
+		inputTokens    int64
+		outputTokens   int64
+		costUSD        float64
+		errors         int64
+		latencySum     float64
+		latencyCount   uint64
+		latencySamples []float64 // for percentile calc from histogram buckets
+		models         map[string]*modelHealthAccum
+	}
+
+	provMap := make(map[string]*provData)
+	getProv := func(name string) *provData {
+		if p, ok := provMap[name]; ok {
+			return p
+		}
+		p := &provData{models: make(map[string]*modelHealthAccum)}
+		provMap[name] = p
+		return p
+	}
+	getModel := func(p *provData, name string) *modelHealthAccum {
+		if m, ok := p.models[name]; ok {
+			return m
+		}
+		m := &modelHealthAccum{}
+		p.models[name] = m
+		return m
+	}
+
+	// Parse counters
+	for _, cs := range snap.Counters {
+		for _, s := range cs.Samples {
+			if len(s.LabelValues) == 0 {
+				continue
+			}
+			prov := s.LabelValues[0]
+			p := getProv(prov)
+			var m *modelHealthAccum
+			if len(s.LabelValues) > 1 {
+				m = getModel(p, s.LabelValues[1])
+			}
+			switch {
+			case strings.HasSuffix(cs.Name, "_requests_total"):
+				p.requests += int64(s.Value)
+				if m != nil {
+					m.requests += int64(s.Value)
+				}
+			case strings.HasSuffix(cs.Name, "_tokens_total") && !strings.Contains(cs.Name, "input") && !strings.Contains(cs.Name, "output"):
+				p.tokens += int64(s.Value)
+				if m != nil {
+					m.tokens += int64(s.Value)
+				}
+			case strings.HasSuffix(cs.Name, "_input_tokens_total"):
+				p.inputTokens += int64(s.Value)
+				if m != nil {
+					m.inputTokens += int64(s.Value)
+				}
+			case strings.HasSuffix(cs.Name, "_output_tokens_total"):
+				p.outputTokens += int64(s.Value)
+				if m != nil {
+					m.outputTokens += int64(s.Value)
+				}
+			case strings.HasSuffix(cs.Name, "_cost_usd_total"):
+				p.costUSD += s.Value
+				if m != nil {
+					m.costUSD += s.Value
+				}
+			case strings.HasSuffix(cs.Name, "_errors_total"):
+				p.errors += int64(s.Value)
+				if m != nil {
+					m.errors += int64(s.Value)
+				}
+			}
+		}
+	}
+
+	// Parse histograms for latency percentiles
+	for _, hs := range snap.Histograms {
+		if !strings.HasSuffix(hs.Name, "_request_duration_seconds") {
+			continue
+		}
+		for _, s := range hs.Samples {
+			if len(s.LabelValues) == 0 {
+				continue
+			}
+			p := getProv(s.LabelValues[0])
+			p.latencySum += s.Sum
+			p.latencyCount += s.Count
+			// Store cumulative counts for percentile estimation
+			for _, b := range s.Buckets {
+				if !math.IsInf(b.Upper, 1) {
+					p.latencySamples = append(p.latencySamples, b.Upper*1000) // convert to ms
+				}
+			}
+		}
+	}
+
+	// Also compute per-provider latency from traces if available
+	var traceLatencies map[string][]float64
+	if h.traceStore != nil {
+		traceLatencies = make(map[string][]float64)
+		allTraces := h.traceStore.Query(TraceQuery{Limit: 10000})
+		for _, t := range allTraces {
+			if t.LatencyMS > 0 {
+				traceLatencies[t.Provider] = append(traceLatencies[t.Provider], t.LatencyMS)
+			}
+		}
+	}
+
+	resp := ProviderHealthResponse{}
+	for name, p := range provMap {
+		// Error rate
+		var errorRate float64
+		if p.requests > 0 {
+			errorRate = float64(p.errors) / float64(p.requests)
+		}
+
+		// Cost per 1K tokens
+		var costPer1K float64
+		if p.tokens > 0 {
+			costPer1K = (p.costUSD / float64(p.tokens)) * 1000
+		}
+
+		// Throughput (tokens per second) from latency data
+		var tokensPerSec float64
+		if p.latencySum > 0 {
+			tokensPerSec = float64(p.tokens) / p.latencySum
+		}
+
+		// Latency percentiles from trace data (more accurate than histogram buckets)
+		var p50, p95, p99 float64
+		if traceLatencies != nil {
+			if lats, ok := traceLatencies[name]; ok && len(lats) > 0 {
+				sorted := make([]float64, len(lats))
+				copy(sorted, lats)
+				sort.Float64s(sorted)
+				p50 = percentile(sorted, 50)
+				p95 = percentile(sorted, 95)
+				p99 = percentile(sorted, 99)
+			}
+		}
+		// Fallback: estimate from histogram average
+		if p50 == 0 && p.latencyCount > 0 {
+			avgMS := (p.latencySum / float64(p.latencyCount)) * 1000
+			p50 = avgMS * 0.8  // approximate
+			p95 = avgMS * 1.8
+			p99 = avgMS * 2.5
+		}
+
+		// Health score: weighted composite
+		healthScore := 100.0
+		healthScore -= errorRate * 40            // error rate penalty (up to -40)
+		if p95 > 5000 {                         // >5s is bad
+			healthScore -= math.Min(30, (p95-5000)/100)
+		}
+		healthScore = math.Max(0, math.Min(100, healthScore))
+
+		// Status label
+		status := "healthy"
+		if healthScore < 70 {
+			status = "degraded"
+		}
+		if healthScore < 40 {
+			status = "unhealthy"
+		}
+
+		// Build per-model health
+		var models []ModelHealth
+		for modelName, m := range p.models {
+			var mErrorRate float64
+			if m.requests > 0 {
+				mErrorRate = float64(m.errors) / float64(m.requests)
+			}
+			var mCostPer1K float64
+			if m.tokens > 0 {
+				mCostPer1K = (m.costUSD / float64(m.tokens)) * 1000
+			}
+			var mAvgLatency float64
+			if m.latencyCount > 0 {
+				mAvgLatency = (m.latencySum / float64(m.latencyCount)) * 1000
+			}
+			models = append(models, ModelHealth{
+				Model:           modelName,
+				Requests:        m.requests,
+				ErrorRate:       mErrorRate,
+				AvgLatencyMS:    mAvgLatency,
+				CostPer1KTokens: mCostPer1K,
+			})
+		}
+		sort.Slice(models, func(i, j int) bool {
+			return models[i].Requests > models[j].Requests
+		})
+
+		resp.Providers = append(resp.Providers, ProviderHealth{
+			Name:            name,
+			ErrorRate:       errorRate,
+			HealthScore:     healthScore,
+			CostPer1KTokens: costPer1K,
+			TokensPerSecond: tokensPerSec,
+			LatencyP50:      p50,
+			LatencyP95:      p95,
+			LatencyP99:      p99,
+			TotalRequests:   p.requests,
+			TotalTokens:     p.tokens,
+			TotalCostUSD:    p.costUSD,
+			Models:          models,
+			Status:          status,
+		})
+	}
+
+	sort.Slice(resp.Providers, func(i, j int) bool {
+		return resp.Providers[i].Name < resp.Providers[j].Name
+	})
+
+	h.writeJSON(w, resp)
+}
+
+// percentile computes the p-th percentile from a sorted slice.
+func percentile(sorted []float64, p float64) float64 {
+	if len(sorted) == 0 {
+		return 0
+	}
+	idx := p / 100 * float64(len(sorted)-1)
+	lower := int(idx)
+	if lower >= len(sorted)-1 {
+		return sorted[len(sorted)-1]
+	}
+	frac := idx - float64(lower)
+	return sorted[lower] + frac*(sorted[lower+1]-sorted[lower])
 }

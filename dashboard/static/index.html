@@ -102,6 +102,28 @@
                 <button class="btn-refresh" onclick="refreshProviders()">&#x21BB; Refresh</button>
             </div>
 
+            <!-- Health Status Cards -->
+            <div class="stat-cards" id="provider-health-cards"></div>
+
+            <!-- Latency Percentiles Chart -->
+            <div class="chart-grid">
+                <div class="chart-container wide">
+                    <h3>Latency Percentiles (P50 / P95 / P99)</h3>
+                    <canvas id="chart-provider-percentiles"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-grid">
+                <div class="chart-container">
+                    <h3>Cost Efficiency ($/1K tokens)</h3>
+                    <canvas id="chart-provider-cost-efficiency"></canvas>
+                </div>
+                <div class="chart-container">
+                    <h3>Throughput (tokens/sec)</h3>
+                    <canvas id="chart-provider-throughput"></canvas>
+                </div>
+            </div>
+
             <div class="chart-grid">
                 <div class="chart-container wide">
                     <h3>Provider Comparison</h3>
@@ -118,6 +140,27 @@
                     <h3>Token Distribution</h3>
                     <canvas id="chart-provider-tokens"></canvas>
                 </div>
+            </div>
+
+            <!-- Health Details Table -->
+            <div class="table-container">
+                <h3>Provider Health &amp; Efficiency</h3>
+                <table class="data-table" id="providers-health-table">
+                    <thead>
+                        <tr>
+                            <th>Provider</th>
+                            <th>Status</th>
+                            <th>Health Score</th>
+                            <th>Error Rate</th>
+                            <th>P50</th>
+                            <th>P95</th>
+                            <th>P99</th>
+                            <th>$/1K tok</th>
+                            <th>tok/sec</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
             </div>
 
             <div class="table-container">
