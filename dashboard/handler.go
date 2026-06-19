@@ -44,7 +44,8 @@ type TraceSummaryResult = llmtrace.TraceSummaryResult
 // It provides:
 //
 //   - GET /api/overview   — overview metrics
-//   - GET /api/providers  — per-provider breakdown
+//   - GET /api/providers        — per-provider breakdown
+//   - GET /api/providers/health — provider health and efficiency metrics
 //   - GET /api/models     — per-model breakdown
 //   - GET /api/latency    — latency distribution
 //   - GET /api/costs      — cost analysis
@@ -71,6 +72,7 @@ func Handler(reg *metrics.Registry, cfg Config) http.Handler {
 	api := newAPIHandler(reg, cfg.TraceStore)
 	mux.Handle("/api/overview", api)
 	mux.Handle("/api/providers", api)
+	mux.Handle("/api/providers/health", api)
 	mux.Handle("/api/models", api)
 	mux.Handle("/api/latency", api)
 	mux.Handle("/api/costs", api)

@@ -217,6 +217,7 @@
 
     // --- Providers ---
     window.refreshProviders = async function() {
+        // Fetch basic provider data
         try {
             var data = await fetchJSON('/api/providers');
             var providers = data.providers || [];
@@ -277,6 +278,106 @@
             });
         } catch (e) {
             console.error('providers failed:', e);
+        }
+
+        // Fetch health data
+        try {
+            var health = await fetchJSON('/api/providers/health');
+            var hProviders = health.providers || [];
+
+            // Health status cards
+            var cardsDiv = document.getElementById('provider-health-cards');
+            if (cardsDiv) {
+                cardsDiv.innerHTML = '';
+                hProviders.forEach(function(p) {
+                    var statusClass = p.status === 'healthy' ? 'accent' : (p.status === 'degraded' ? '' : 'danger');
+                    var card = document.createElement('div');
+                    card.className = 'stat-card ' + statusClass;
+                    card.innerHTML =
+                        '<div class="stat-label">' + p.name + '</div>' +
+                        '<div class="stat-value">' + Math.round(p.health_score) + '%</div>' +
+                        '<div class="stat-sub">' + p.status + ' &middot; ' + (p.error_rate * 100).toFixed(1) + '% err</div>';
+                    cardsDiv.appendChild(card);
+                });
+            }
+
+            // Latency percentiles chart
+            if (hProviders.length > 0) {
+                getOrCreateChart('chart-provider-percentiles', {
+                    type: 'bar',
+                    data: {
+                        labels: hProviders.map(function(p) { return p.name; }),
+                        datasets: [
+                            { label: 'P50', data: hProviders.map(function(p) { return p.latency_p50_ms; }), backgroundColor: COLORS.green, borderRadius: 4 },
+                            { label: 'P95', data: hProviders.map(function(p) { return p.latency_p95_ms; }), backgroundColor: COLORS.yellow, borderRadius: 4 },
+                            { label: 'P99', data: hProviders.map(function(p) { return p.latency_p99_ms; }), backgroundColor: COLORS.red, borderRadius: 4 },
+                        ],
+                    },
+                    options: Object.assign({}, CHART_DEFAULTS, {
+                        plugins: { legend: { labels: { color: '#94a3b8' } } },
+                        scales: Object.assign({}, CHART_DEFAULTS.scales, {
+                            y: Object.assign({}, CHART_DEFAULTS.scales.y, { title: { display: true, text: 'ms', color: '#64748b' } }),
+                        }),
+                    }),
+                });
+
+                // Cost efficiency chart
+                getOrCreateChart('chart-provider-cost-efficiency', {
+                    type: 'bar',
+                    data: {
+                        labels: hProviders.map(function(p) { return p.name; }),
+                        datasets: [{
+                            label: '$/1K tokens',
+                            data: hProviders.map(function(p) { return p.cost_per_1k_tokens; }),
+                            backgroundColor: hProviders.map(function(p, i) { return PROVIDER_COLORS[i % PROVIDER_COLORS.length]; }),
+                            borderRadius: 4,
+                        }],
+                    },
+                    options: Object.assign({}, CHART_DEFAULTS, { plugins: { legend: { display: false } } }),
+                });
+
+                // Throughput chart
+                getOrCreateChart('chart-provider-throughput', {
+                    type: 'bar',
+                    data: {
+                        labels: hProviders.map(function(p) { return p.name; }),
+                        datasets: [{
+                            label: 'tokens/sec',
+                            data: hProviders.map(function(p) { return p.tokens_per_second; }),
+                            backgroundColor: hProviders.map(function(p, i) { return PROVIDER_COLORS[(i + 2) % PROVIDER_COLORS.length]; }),
+                            borderRadius: 4,
+                        }],
+                    },
+                    options: Object.assign({}, CHART_DEFAULTS, { plugins: { legend: { display: false } } }),
+                });
+            }
+
+            // Health details table
+            var htbody = document.querySelector('#providers-health-table tbody');
+            if (htbody) {
+                htbody.innerHTML = '';
+                hProviders.forEach(function(p) {
+                    var statusBadge = p.status === 'healthy' ?
+                        '<span class="badge badge-success">Healthy</span>' :
+                        (p.status === 'degraded' ?
+                            '<span class="badge badge-warn">Degraded</span>' :
+                            '<span class="badge badge-error">Unhealthy</span>');
+                    var tr = document.createElement('tr');
+                    tr.innerHTML =
+                        '<td>' + p.name + '</td>' +
+                        '<td>' + statusBadge + '</td>' +
+                        '<td class="number">' + Math.round(p.health_score) + '%</td>' +
+                        '<td class="number">' + (p.error_rate * 100).toFixed(1) + '%</td>' +
+                        '<td class="number">' + formatMs(p.latency_p50_ms) + '</td>' +
+                        '<td class="number">' + formatMs(p.latency_p95_ms) + '</td>' +
+                        '<td class="number">' + formatMs(p.latency_p99_ms) + '</td>' +
+                        '<td class="number">' + formatCost(p.cost_per_1k_tokens) + '</td>' +
+                        '<td class="number">' + formatMs(p.tokens_per_second) + '</td>';
+                    htbody.appendChild(tr);
+                });
+            }
+        } catch (e) {
+            console.error('provider health failed:', e);
         }
     };
 
