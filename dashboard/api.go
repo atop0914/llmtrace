@@ -701,15 +701,15 @@ func (h *apiHandler) handleProviderHealth(w http.ResponseWriter, _ *http.Request
 		// Fallback: estimate from histogram average
 		if p50 == 0 && p.latencyCount > 0 {
 			avgMS := (p.latencySum / float64(p.latencyCount)) * 1000
-			p50 = avgMS * 0.8  // approximate
+			p50 = avgMS * 0.8 // approximate
 			p95 = avgMS * 1.8
 			p99 = avgMS * 2.5
 		}
 
 		// Health score: weighted composite
 		healthScore := 100.0
-		healthScore -= errorRate * 40            // error rate penalty (up to -40)
-		if p95 > 5000 {                         // >5s is bad
+		healthScore -= errorRate * 40 // error rate penalty (up to -40)
+		if p95 > 5000 {               // >5s is bad
 			healthScore -= math.Min(30, (p95-5000)/100)
 		}
 		healthScore = math.Max(0, math.Min(100, healthScore))
