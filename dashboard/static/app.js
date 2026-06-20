@@ -384,8 +384,9 @@
     // --- Models ---
     window.refreshModels = async function() {
         try {
-            var data = await fetchJSON('/api/models');
-            var models = data.models || [];
+            // Fetch model health data for enhanced metrics
+            var healthData = await fetchJSON('/api/models/health');
+            var models = healthData.models || [];
 
             var labels = models.map(function(m) { return m.provider + '/' + m.model; });
 
@@ -408,7 +409,7 @@
                 data: {
                     labels: labels,
                     datasets: [{
-                        label: 'Cost',
+                        label: 'Cost (USD)',
                         data: models.map(function(m) { return m.cost_usd; }),
                         backgroundColor: COLORS.green,
                         borderRadius: 4,
@@ -417,23 +418,41 @@
                 options: Object.assign({}, CHART_DEFAULTS, { plugins: { legend: { display: false } } }),
             });
 
+            // Latency comparison chart with P50/P95/P99
             getOrCreateChart('chart-model-latency', {
                 type: 'bar',
                 data: {
                     labels: labels,
-                    datasets: [{
-                        label: 'Avg Latency (ms)',
-                        data: models.map(function(m) { return m.avg_latency_ms; }),
-                        backgroundColor: COLORS.yellow,
-                        borderRadius: 4,
-                    }],
+                    datasets: [
+                        {
+                            label: 'P50 (ms)',
+                            data: models.map(function(m) { return m.latency_p50_ms; }),
+                            backgroundColor: COLORS.green,
+                            borderRadius: 4,
+                        },
+                        {
+                            label: 'P95 (ms)',
+                            data: models.map(function(m) { return m.latency_p95_ms; }),
+                            backgroundColor: COLORS.yellow,
+                            borderRadius: 4,
+                        },
+                        {
+                            label: 'P99 (ms)',
+                            data: models.map(function(m) { return m.latency_p99_ms; }),
+                            backgroundColor: COLORS.red,
+                            borderRadius: 4,
+                        },
+                    ],
                 },
-                options: Object.assign({}, CHART_DEFAULTS, { plugins: { legend: { display: false } } }),
+                options: Object.assign({}, CHART_DEFAULTS, { plugins: { legend: { position: 'top' } } }),
             });
 
+            // Model health table with enhanced metrics
             var tbody = document.querySelector('#models-table tbody');
             tbody.innerHTML = '';
             models.forEach(function(m) {
+                var statusClass = m.status === 'healthy' ? 'status-healthy' :
+                                  m.status === 'degraded' ? 'status-degraded' : 'status-unhealthy';
                 var tr = document.createElement('tr');
                 tr.innerHTML = '<td>' + m.provider + '</td>' +
                     '<td>' + m.model + '</td>' +
@@ -441,13 +460,70 @@
                     '<td class="number">' + formatNumber(m.input_tokens) + '</td>' +
                     '<td class="number">' + formatNumber(m.output_tokens) + '</td>' +
                     '<td class="number">' + formatCost(m.cost_usd) + '</td>' +
-                    '<td class="number">' + formatMs(m.avg_latency_ms) + ' ms</td>';
+                    '<td class="number">' + formatCost(m.cost_per_1k_tokens) + '</td>' +
+                    '<td class="number">' + formatMs(m.latency_p50_ms) + '</td>' +
+                    '<td class="number">' + formatMs(m.latency_p95_ms) + '</td>' +
+                    '<td class="number">' + formatNumber(Math.round(m.tokens_per_second)) + '</td>' +
+                    '<td class="number"><span class="' + statusClass + '">' +
+                        Math.round(m.health_score) + '%</span></td>' +
+                    '<td><span class="badge badge-' + m.status + '">' + m.status + '</span></td>';
                 tbody.appendChild(tr);
             });
+
+            // Fetch and display model rankings
+            try {
+                var rankings = await fetchJSON('/api/models/rankings');
+                renderModelRankings(rankings);
+            } catch (e) {
+                console.warn('rankings fetch failed:', e);
+            }
         } catch (e) {
             console.error('models failed:', e);
         }
     };
+
+    function renderModelRankings(rankings) {
+        var container = document.getElementById('model-rankings');
+        if (!container) return;
+
+        var html = '<div class="rankings-grid">';
+
+        // Cost efficiency ranking
+        html += '<div class="ranking-card"><h4>💰 Cost Efficiency</h4><ol>';
+        (rankings.by_cost_efficiency || []).slice(0, 5).forEach(function(r) {
+            html += '<li><span class="rank-model">' + r.provider + '/' + r.model +
+                    '</span> <span class="rank-value">' + formatCost(r.value) + '/1K tok</span></li>';
+        });
+        html += '</ol></div>';
+
+        // Latency ranking
+        html += '<div class="ranking-card"><h4>⚡ Latency (P50)</h4><ol>';
+        (rankings.by_latency || []).slice(0, 5).forEach(function(r) {
+            html += '<li><span class="rank-model">' + r.provider + '/' + r.model +
+                    '</span> <span class="rank-value">' + formatMs(r.value) + ' ms</span></li>';
+        });
+        html += '</ol></div>';
+
+        // Throughput ranking
+        html += '<div class="ranking-card"><h4>🚀 Throughput</h4><ol>';
+        (rankings.by_throughput || []).slice(0, 5).forEach(function(r) {
+            html += '<li><span class="rank-model">' + r.provider + '/' + r.model +
+                    '</span> <span class="rank-value">' + formatNumber(Math.round(r.value)) + ' tok/s</span></li>';
+        });
+        html += '</ol></div>';
+
+        // Reliability ranking
+        html += '<div class="ranking-card"><h4>🛡️ Reliability</h4><ol>';
+        (rankings.by_reliability || []).slice(0, 5).forEach(function(r) {
+            var errorPct = (r.value * 100).toFixed(1);
+            html += '<li><span class="rank-model">' + r.provider + '/' + r.model +
+                    '</span> <span class="rank-value">' + errorPct + '% err</span></li>';
+        });
+        html += '</ol></div>';
+
+        html += '</div>';
+        container.innerHTML = html;
+    }
 
     // --- Costs ---
     window.refreshCosts = async function() {

@@ -154,3 +154,50 @@ type ModelHealth struct {
 	AvgLatencyMS    float64 `json:"avg_latency_ms"`
 	CostPer1KTokens float64 `json:"cost_per_1k_tokens"`
 }
+
+// ModelHealthResponse is the /api/models/health response.
+type ModelHealthResponse struct {
+	Models []ModelHealthDetail `json:"models"`
+}
+
+// ModelHealthDetail holds detailed health metrics for a single model.
+type ModelHealthDetail struct {
+	Provider         string  `json:"provider"`
+	Model            string  `json:"model"`
+	Requests         int64   `json:"requests"`
+	Errors           int64   `json:"errors"`
+	ErrorRate        float64 `json:"error_rate"`          // 0.0 - 1.0
+	HealthScore      float64 `json:"health_score"`        // 0 - 100
+	Tokens           int64   `json:"tokens"`
+	InputTokens      int64   `json:"input_tokens"`
+	OutputTokens     int64   `json:"output_tokens"`
+	CostUSD          float64 `json:"cost_usd"`
+	CostPer1KTokens  float64 `json:"cost_per_1k_tokens"` // USD
+	TokensPerSecond  float64 `json:"tokens_per_second"`  // throughput
+	LatencyP50       float64 `json:"latency_p50_ms"`
+	LatencyP95       float64 `json:"latency_p95_ms"`
+	LatencyP99       float64 `json:"latency_p99_ms"`
+	AvgLatencyMS     float64 `json:"avg_latency_ms"`
+	Status           string  `json:"status"` // "healthy", "degraded", "unhealthy"
+}
+
+// ModelCompareResponse is the /api/models/compare response.
+type ModelCompareResponse struct {
+	Models []ModelHealthDetail `json:"models"`
+}
+
+// ModelRankingResponse is the /api/models/rankings response.
+type ModelRankingResponse struct {
+	ByCostEfficiency  []ModelRankingEntry `json:"by_cost_efficiency"`
+	ByLatency         []ModelRankingEntry `json:"by_latency"`
+	ByThroughput      []ModelRankingEntry `json:"by_throughput"`
+	ByReliability     []ModelRankingEntry `json:"by_reliability"`
+}
+
+// ModelRankingEntry holds a model's ranking position.
+type ModelRankingEntry struct {
+	Rank     int     `json:"rank"`
+	Provider string  `json:"provider"`
+	Model    string  `json:"model"`
+	Value    float64 `json:"value"`
+}
