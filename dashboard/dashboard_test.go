@@ -809,3 +809,307 @@ func TestPercentile(t *testing.T) {
 		t.Errorf("expected 0 for nil slice, got %f", p)
 	}
 }
+
+func TestHandleModelHealth(t *testing.T) {
+	reg := setupRegistry()
+	handler := newAPIHandler(reg, nil)
+
+	req := httptest.NewRequest("GET", "/api/models/health", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp ModelHealthResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(resp.Models) != 3 {
+		t.Fatalf("expected 3 models, got %d", len(resp.Models))
+	}
+
+	// Build map for easier testing
+	modelMap := make(map[string]ModelHealthDetail)
+	for _, m := range resp.Models {
+		key := m.Provider + "/" + m.Model
+		modelMap[key] = m
+	}
+
+	// Test gpt-4o
+	gpt4o, ok := modelMap["openai/gpt-4o"]
+	if !ok {
+		t.Fatal("missing openai/gpt-4o")
+	}
+	if gpt4o.Requests != 100 {
+		t.Errorf("expected 100 requests for gpt-4o, got %d", gpt4o.Requests)
+	}
+	if gpt4o.Tokens != 50000 {
+		t.Errorf("expected 50000 tokens for gpt-4o, got %d", gpt4o.Tokens)
+	}
+	if gpt4o.InputTokens != 30000 {
+		t.Errorf("expected 30000 input tokens for gpt-4o, got %d", gpt4o.InputTokens)
+	}
+	if gpt4o.OutputTokens != 20000 {
+		t.Errorf("expected 20000 output tokens for gpt-4o, got %d", gpt4o.OutputTokens)
+	}
+	if gpt4o.CostUSD < 1.49 || gpt4o.CostUSD > 1.51 {
+		t.Errorf("expected ~1.50 cost for gpt-4o, got %f", gpt4o.CostUSD)
+	}
+	if gpt4o.HealthScore < 90 || gpt4o.HealthScore > 100 {
+		t.Errorf("expected health score 90-100 for gpt-4o, got %f", gpt4o.HealthScore)
+	}
+	if gpt4o.Status != "healthy" {
+		t.Errorf("expected healthy status for gpt-4o, got %s", gpt4o.Status)
+	}
+	if gpt4o.LatencyP50 <= 0 {
+		t.Error("expected positive P50 for gpt-4o")
+	}
+	if gpt4o.LatencyP95 <= 0 {
+		t.Error("expected positive P95 for gpt-4o")
+	}
+	if gpt4o.LatencyP99 <= 0 {
+		t.Error("expected positive P99 for gpt-4o")
+	}
+	if gpt4o.AvgLatencyMS <= 0 {
+		t.Error("expected positive avg latency for gpt-4o")
+	}
+
+	// Test anthropic
+	claude, ok := modelMap["anthropic/claude-3-opus"]
+	if !ok {
+		t.Fatal("missing anthropic/claude-3-opus")
+	}
+	if claude.Requests != 30 {
+		t.Errorf("expected 30 requests for claude-3-opus, got %d", claude.Requests)
+	}
+	if claude.HealthScore < 90 || claude.HealthScore > 100 {
+		t.Errorf("expected health score 90-100 for claude-3-opus, got %f", claude.HealthScore)
+	}
+	if claude.Status != "healthy" {
+		t.Errorf("expected healthy status for claude-3-opus, got %s", claude.Status)
+	}
+
+	// Test cost per 1K tokens
+	if gpt4o.CostPer1KTokens <= 0 {
+		t.Error("expected positive cost per 1K tokens for gpt-4o")
+	}
+}
+
+func TestHandleModelHealth_NoTraces(t *testing.T) {
+	reg := setupRegistry()
+	handler := newAPIHandler(reg, nil)
+
+	req := httptest.NewRequest("GET", "/api/models/health", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	var resp ModelHealthResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
+
+	// Should still have latency estimates from histogram fallback
+	for _, m := range resp.Models {
+		if m.LatencyP50 <= 0 {
+			t.Errorf("expected positive P50 for %s/%s (histogram fallback)", m.Provider, m.Model)
+		}
+	}
+}
+
+func TestHandleModelHealth_EmptyRegistry(t *testing.T) {
+	reg := metrics.NewRegistry("empty")
+	handler := newAPIHandler(reg, nil)
+
+	req := httptest.NewRequest("GET", "/api/models/health", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	var resp ModelHealthResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Models) != 0 {
+		t.Errorf("expected 0 models for empty registry, got %d", len(resp.Models))
+	}
+}
+
+func TestHandleModelCompare(t *testing.T) {
+	reg := setupRegistry()
+	handler := newAPIHandler(reg, nil)
+
+	req := httptest.NewRequest("GET", "/api/models/compare?models=openai:gpt-4o,anthropic:claude-3-opus", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp ModelCompareResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(resp.Models) != 2 {
+		t.Fatalf("expected 2 models in comparison, got %d", len(resp.Models))
+	}
+
+	// First model should be gpt-4o
+	if resp.Models[0].Provider != "openai" || resp.Models[0].Model != "gpt-4o" {
+		t.Errorf("expected first model to be openai/gpt-4o, got %s/%s", resp.Models[0].Provider, resp.Models[0].Model)
+	}
+
+	// Second model should be claude-3-opus
+	if resp.Models[1].Provider != "anthropic" || resp.Models[1].Model != "claude-3-opus" {
+		t.Errorf("expected second model to be anthropic/claude-3-opus, got %s/%s", resp.Models[1].Provider, resp.Models[1].Model)
+	}
+
+	// Both should have valid health scores
+	for _, m := range resp.Models {
+		if m.HealthScore < 0 || m.HealthScore > 100 {
+			t.Errorf("invalid health score for %s/%s: %f", m.Provider, m.Model, m.HealthScore)
+		}
+		if m.LatencyP50 <= 0 {
+			t.Errorf("expected positive P50 for %s/%s", m.Provider, m.Model)
+		}
+	}
+}
+
+func TestHandleModelCompare_MissingParam(t *testing.T) {
+	reg := setupRegistry()
+	handler := newAPIHandler(reg, nil)
+
+	req := httptest.NewRequest("GET", "/api/models/compare", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", w.Code)
+	}
+}
+
+func TestHandleModelCompare_UnknownModel(t *testing.T) {
+	reg := setupRegistry()
+	handler := newAPIHandler(reg, nil)
+
+	req := httptest.NewRequest("GET", "/api/models/compare?models=openai:gpt-4o,openai:nonexistent", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp ModelCompareResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(resp.Models) != 2 {
+		t.Fatalf("expected 2 models, got %d", len(resp.Models))
+	}
+
+	// Known model should have data
+	if resp.Models[0].Requests != 100 {
+		t.Errorf("expected 100 requests for gpt-4o, got %d", resp.Models[0].Requests)
+	}
+
+	// Unknown model should have zero data
+	if resp.Models[1].Requests != 0 {
+		t.Errorf("expected 0 requests for nonexistent, got %d", resp.Models[1].Requests)
+	}
+}
+
+func TestHandleModelRankings(t *testing.T) {
+	reg := setupRegistry()
+	handler := newAPIHandler(reg, nil)
+
+	req := httptest.NewRequest("GET", "/api/models/rankings", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp ModelRankingResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
+
+	// Should have rankings for all 3 models
+	if len(resp.ByCostEfficiency) != 3 {
+		t.Errorf("expected 3 cost efficiency rankings, got %d", len(resp.ByCostEfficiency))
+	}
+	if len(resp.ByLatency) != 3 {
+		t.Errorf("expected 3 latency rankings, got %d", len(resp.ByLatency))
+	}
+	if len(resp.ByThroughput) != 3 {
+		t.Errorf("expected 3 throughput rankings, got %d", len(resp.ByThroughput))
+	}
+	if len(resp.ByReliability) != 3 {
+		t.Errorf("expected 3 reliability rankings, got %d", len(resp.ByReliability))
+	}
+
+	// Verify rankings are sorted correctly
+	// Cost efficiency: lower is better (ascending)
+	for i := 1; i < len(resp.ByCostEfficiency); i++ {
+		if resp.ByCostEfficiency[i].Value < resp.ByCostEfficiency[i-1].Value {
+			t.Error("cost efficiency not sorted ascending")
+		}
+	}
+
+	// Latency: lower is better (ascending)
+	for i := 1; i < len(resp.ByLatency); i++ {
+		if resp.ByLatency[i].Value < resp.ByLatency[i-1].Value {
+			t.Error("latency not sorted ascending")
+		}
+	}
+
+	// Throughput: higher is better (descending)
+	for i := 1; i < len(resp.ByThroughput); i++ {
+		if resp.ByThroughput[i].Value > resp.ByThroughput[i-1].Value {
+			t.Error("throughput not sorted descending")
+		}
+	}
+
+	// Reliability: lower error rate is better (ascending)
+	for i := 1; i < len(resp.ByReliability); i++ {
+		if resp.ByReliability[i].Value < resp.ByReliability[i-1].Value {
+			t.Error("reliability not sorted ascending")
+		}
+	}
+
+	// Verify rank numbers
+	for _, rankings := range [][]ModelRankingEntry{resp.ByCostEfficiency, resp.ByLatency, resp.ByThroughput, resp.ByReliability} {
+		for i, entry := range rankings {
+			if entry.Rank != i+1 {
+				t.Errorf("expected rank %d, got %d", i+1, entry.Rank)
+			}
+		}
+	}
+}
+
+func TestHandleModelRankings_EmptyRegistry(t *testing.T) {
+	reg := metrics.NewRegistry("empty")
+	handler := newAPIHandler(reg, nil)
+
+	req := httptest.NewRequest("GET", "/api/models/rankings", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	var resp ModelRankingResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(resp.ByCostEfficiency) != 0 {
+		t.Errorf("expected 0 rankings for empty registry, got %d", len(resp.ByCostEfficiency))
+	}
+	if len(resp.ByLatency) != 0 {
+		t.Errorf("expected 0 rankings for empty registry, got %d", len(resp.ByLatency))
+	}
+}

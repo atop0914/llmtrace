@@ -38,6 +38,12 @@ func (h *apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.handleProviderHealth(w, r)
 	case "/models":
 		h.handleModels(w, r)
+	case "/models/health":
+		h.handleModelHealth(w, r)
+	case "/models/compare":
+		h.handleModelCompare(w, r)
+	case "/models/rankings":
+		h.handleModelRankings(w, r)
 	case "/latency":
 		h.handleLatency(w, r)
 	case "/costs":
@@ -538,6 +544,346 @@ func (h *apiHandler) writeJSON(w http.ResponseWriter, v interface{}) {
 func (h *apiHandler) writeError(w http.ResponseWriter, code int, msg string) {
 	w.WriteHeader(code)
 	_ = json.NewEncoder(w).Encode(map[string]string{"error": msg})
+}
+
+// buildModelHealthDetail computes detailed health metrics for a model.
+func (h *apiHandler) buildModelHealthDetail(provider, model string, m *modelMetricsAccum, traceLatencies []float64) ModelHealthDetail {
+	// Error rate
+	var errorRate float64
+	if m.requests > 0 {
+		errorRate = float64(m.errors) / float64(m.requests)
+	}
+
+	// Cost per 1K tokens
+	var costPer1K float64
+	if m.tokens > 0 {
+		costPer1K = (m.costUSD / float64(m.tokens)) * 1000
+	}
+
+	// Throughput (tokens per second)
+	var tokensPerSec float64
+	if m.latencySum > 0 {
+		tokensPerSec = float64(m.tokens) / m.latencySum
+	}
+
+	// Latency percentiles
+	var p50, p95, p99 float64
+	if len(traceLatencies) > 0 {
+		sorted := make([]float64, len(traceLatencies))
+		copy(sorted, traceLatencies)
+		sort.Float64s(sorted)
+		p50 = percentile(sorted, 50)
+		p95 = percentile(sorted, 95)
+		p99 = percentile(sorted, 99)
+	}
+	// Fallback: estimate from histogram average
+	if p50 == 0 && m.latencyCount > 0 {
+		avgMS := (m.latencySum / float64(m.latencyCount)) * 1000
+		p50 = avgMS * 0.8
+		p95 = avgMS * 1.8
+		p99 = avgMS * 2.5
+	}
+
+	// Average latency
+	var avgLatencyMS float64
+	if m.latencyCount > 0 {
+		avgLatencyMS = (m.latencySum / float64(m.latencyCount)) * 1000
+	}
+
+	// Health score: weighted composite
+	healthScore := 100.0
+	healthScore -= errorRate * 40 // error rate penalty (up to -40)
+	if p95 > 5000 {               // >5s is bad
+		healthScore -= math.Min(30, (p95-5000)/100)
+	}
+	healthScore = math.Max(0, math.Min(100, healthScore))
+
+	// Status label
+	status := "healthy"
+	if healthScore < 70 {
+		status = "degraded"
+	}
+	if healthScore < 40 {
+		status = "unhealthy"
+	}
+
+	return ModelHealthDetail{
+		Provider:        provider,
+		Model:           model,
+		Requests:        m.requests,
+		Errors:          m.errors,
+		ErrorRate:       errorRate,
+		HealthScore:     healthScore,
+		Tokens:          m.tokens,
+		InputTokens:     m.inputTokens,
+		OutputTokens:    m.outputTokens,
+		CostUSD:         m.costUSD,
+		CostPer1KTokens: costPer1K,
+		TokensPerSecond: tokensPerSec,
+		LatencyP50:      p50,
+		LatencyP95:      p95,
+		LatencyP99:      p99,
+		AvgLatencyMS:    avgLatencyMS,
+		Status:          status,
+	}
+}
+
+// modelKey represents a unique model identifier.
+type modelKey struct{ provider, model string }
+
+// modelMetricsAccum holds accumulated metrics for a single model.
+type modelMetricsAccum struct {
+	requests     int64
+	tokens       int64
+	inputTokens  int64
+	outputTokens int64
+	costUSD      float64
+	errors       int64
+	latencySum   float64
+	latencyCount uint64
+}
+
+// collectModelMetrics gathers per-model metrics from the registry and trace store.
+func (h *apiHandler) collectModelMetrics() (map[modelKey]*modelMetricsAccum, map[modelKey][]float64) {
+	snap := h.registry.Collect()
+
+	modelMap := make(map[modelKey]*modelMetricsAccum)
+
+	getModel := func(provider, model string) *modelMetricsAccum {
+		k := modelKey{provider, model}
+		if m, ok := modelMap[k]; ok {
+			return m
+		}
+		m := &modelMetricsAccum{}
+		modelMap[k] = m
+		return m
+	}
+
+	// Parse counters - only those with "model" as second label
+	for _, cs := range snap.Counters {
+		// Skip counters that don't have model as second label
+		if len(cs.Labels) < 2 || cs.Labels[1] != "model" {
+			continue
+		}
+		for _, s := range cs.Samples {
+			if len(s.LabelValues) < 2 {
+				continue
+			}
+			prov, modelName := s.LabelValues[0], s.LabelValues[1]
+			m := getModel(prov, modelName)
+			switch {
+			case strings.HasSuffix(cs.Name, "_requests_total"):
+				m.requests += int64(s.Value)
+			case strings.HasSuffix(cs.Name, "_tokens_total") && !strings.Contains(cs.Name, "input") && !strings.Contains(cs.Name, "output"):
+				m.tokens += int64(s.Value)
+			case strings.HasSuffix(cs.Name, "_input_tokens_total"):
+				m.inputTokens += int64(s.Value)
+			case strings.HasSuffix(cs.Name, "_output_tokens_total"):
+				m.outputTokens += int64(s.Value)
+			case strings.HasSuffix(cs.Name, "_cost_usd_total"):
+				m.costUSD += s.Value
+			}
+		}
+	}
+
+	// Parse errors counter separately (has error_type as second label, not model)
+	for _, cs := range snap.Counters {
+		if !strings.HasSuffix(cs.Name, "_errors_total") {
+			continue
+		}
+		for _, s := range cs.Samples {
+			if len(s.LabelValues) < 1 {
+				continue
+			}
+			// Errors are aggregated per provider, not per model
+			// We'll distribute them evenly across models for now
+			prov := s.LabelValues[0]
+			// Find all models for this provider and add error count
+			errorCount := int64(s.Value)
+			var provModels []modelKey
+			for k := range modelMap {
+				if k.provider == prov {
+					provModels = append(provModels, k)
+				}
+			}
+			if len(provModels) > 0 {
+				perModel := errorCount / int64(len(provModels))
+				remainder := errorCount % int64(len(provModels))
+				for i, k := range provModels {
+					add := perModel
+					if int64(i) < remainder {
+						add++
+					}
+					modelMap[k].errors += add
+				}
+			}
+		}
+	}
+
+	// Parse histograms
+	for _, hs := range snap.Histograms {
+		if !strings.HasSuffix(hs.Name, "_request_duration_seconds") {
+			continue
+		}
+		for _, s := range hs.Samples {
+			if len(s.LabelValues) < 2 {
+				continue
+			}
+			m := getModel(s.LabelValues[0], s.LabelValues[1])
+			m.latencySum += s.Sum
+			m.latencyCount += s.Count
+		}
+	}
+
+	// Collect trace latencies per model
+	traceLatencies := make(map[modelKey][]float64)
+	if h.traceStore != nil {
+		allTraces := h.traceStore.Query(TraceQuery{Limit: 10000})
+		for _, t := range allTraces {
+			if t.LatencyMS > 0 {
+				k := modelKey{t.Provider, t.Model}
+				traceLatencies[k] = append(traceLatencies[k], t.LatencyMS)
+			}
+		}
+	}
+
+	return modelMap, traceLatencies
+}
+
+// handleModelHealth returns detailed health metrics for all models.
+func (h *apiHandler) handleModelHealth(w http.ResponseWriter, _ *http.Request) {
+	modelMap, traceLatencies := h.collectModelMetrics()
+
+	resp := ModelHealthResponse{}
+	for k, m := range modelMap {
+		lats := traceLatencies[k]
+		detail := h.buildModelHealthDetail(k.provider, k.model, m, lats)
+		resp.Models = append(resp.Models, detail)
+	}
+
+	sort.Slice(resp.Models, func(i, j int) bool {
+		if resp.Models[i].Provider != resp.Models[j].Provider {
+			return resp.Models[i].Provider < resp.Models[j].Provider
+		}
+		return resp.Models[i].Model < resp.Models[j].Model
+	})
+
+	h.writeJSON(w, resp)
+}
+
+// handleModelCompare compares specific models side by side.
+// Query param: models=provider1:model1,provider2:model2
+func (h *apiHandler) handleModelCompare(w http.ResponseWriter, r *http.Request) {
+	modelsParam := r.URL.Query().Get("models")
+	if modelsParam == "" {
+		h.writeError(w, http.StatusBadRequest, "models query parameter required (format: provider:model,provider:model)")
+		return
+	}
+
+	// Parse requested models
+	type modelRef struct{ provider, model string }
+	var requested []modelRef
+	for _, part := range strings.Split(modelsParam, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		pieces := strings.SplitN(part, ":", 2)
+		if len(pieces) != 2 {
+			continue
+		}
+		requested = append(requested, modelRef{pieces[0], pieces[1]})
+	}
+
+	if len(requested) == 0 {
+		h.writeError(w, http.StatusBadRequest, "no valid models specified")
+		return
+	}
+
+	modelMap, traceLatencies := h.collectModelMetrics()
+
+	resp := ModelCompareResponse{}
+	for _, ref := range requested {
+		k := modelKey{ref.provider, ref.model}
+		m, ok := modelMap[k]
+		if !ok {
+			// Model not found, return empty metrics
+			m = &modelMetricsAccum{}
+		}
+		lats := traceLatencies[k]
+		detail := h.buildModelHealthDetail(ref.provider, ref.model, m, lats)
+		resp.Models = append(resp.Models, detail)
+	}
+
+	h.writeJSON(w, resp)
+}
+
+// handleModelRankings returns model rankings by different metrics.
+func (h *apiHandler) handleModelRankings(w http.ResponseWriter, _ *http.Request) {
+	modelMap, traceLatencies := h.collectModelMetrics()
+
+	type rankedModel struct {
+		provider, model string
+		value           float64
+	}
+
+	// Build list of models with health details
+	var models []ModelHealthDetail
+	for k, m := range modelMap {
+		lats := traceLatencies[k]
+		detail := h.buildModelHealthDetail(k.provider, k.model, m, lats)
+		models = append(models, detail)
+	}
+
+	resp := ModelRankingResponse{}
+
+	// By cost efficiency (lowest cost per 1K tokens)
+	var costRanked []rankedModel
+	for _, m := range models {
+		if m.CostPer1KTokens > 0 {
+			costRanked = append(costRanked, rankedModel{m.Provider, m.Model, m.CostPer1KTokens})
+		}
+	}
+	sort.Slice(costRanked, func(i, j int) bool { return costRanked[i].value < costRanked[j].value })
+	for i, r := range costRanked {
+		resp.ByCostEfficiency = append(resp.ByCostEfficiency, ModelRankingEntry{i + 1, r.provider, r.model, r.value})
+	}
+
+	// By latency (lowest p50)
+	var latencyRanked []rankedModel
+	for _, m := range models {
+		if m.LatencyP50 > 0 {
+			latencyRanked = append(latencyRanked, rankedModel{m.Provider, m.Model, m.LatencyP50})
+		}
+	}
+	sort.Slice(latencyRanked, func(i, j int) bool { return latencyRanked[i].value < latencyRanked[j].value })
+	for i, r := range latencyRanked {
+		resp.ByLatency = append(resp.ByLatency, ModelRankingEntry{i + 1, r.provider, r.model, r.value})
+	}
+
+	// By throughput (highest tokens per second)
+	var throughputRanked []rankedModel
+	for _, m := range models {
+		if m.TokensPerSecond > 0 {
+			throughputRanked = append(throughputRanked, rankedModel{m.Provider, m.Model, m.TokensPerSecond})
+		}
+	}
+	sort.Slice(throughputRanked, func(i, j int) bool { return throughputRanked[i].value > throughputRanked[j].value })
+	for i, r := range throughputRanked {
+		resp.ByThroughput = append(resp.ByThroughput, ModelRankingEntry{i + 1, r.provider, r.model, r.value})
+	}
+
+	// By reliability (lowest error rate)
+	var reliabilityRanked []rankedModel
+	for _, m := range models {
+		reliabilityRanked = append(reliabilityRanked, rankedModel{m.Provider, m.Model, m.ErrorRate})
+	}
+	sort.Slice(reliabilityRanked, func(i, j int) bool { return reliabilityRanked[i].value < reliabilityRanked[j].value })
+	for i, r := range reliabilityRanked {
+		resp.ByReliability = append(resp.ByReliability, ModelRankingEntry{i + 1, r.provider, r.model, r.value})
+	}
+
+	h.writeJSON(w, resp)
 }
 
 func (h *apiHandler) handleProviderHealth(w http.ResponseWriter, _ *http.Request) {
