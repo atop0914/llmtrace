@@ -804,7 +804,7 @@ func (h *apiHandler) handleModelCompare(w http.ResponseWriter, r *http.Request) 
 
 	resp := ModelCompareResponse{}
 	for _, ref := range requested {
-		k := modelKey{ref.provider, ref.model}
+		k := modelKey(ref)
 		m, ok := modelMap[k]
 		if !ok {
 			// Model not found, return empty metrics
