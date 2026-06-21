@@ -201,3 +201,72 @@ type ModelRankingEntry struct {
 	Model    string  `json:"model"`
 	Value    float64 `json:"value"`
 }
+
+
+// --- Cost & Error Enhancement Types ---
+
+// CostTrendResponse is the /api/costs/trend response.
+type CostTrendResponse struct {
+	Daily     []CostTrendPoint `json:"daily"`
+	TotalUSD  float64          `json:"total_usd"`
+	Days      int              `json:"days"`
+	AvgPerDay float64          `json:"avg_per_day"`
+}
+
+// CostTrendPoint represents a single day's cost data.
+type CostTrendPoint struct {
+	Date     string  `json:"date"`
+	CostUSD  float64 `json:"cost_usd"`
+	Requests int64   `json:"requests"`
+	Tokens   int64   `json:"tokens"`
+}
+
+// CostBreakdownResponse is the /api/costs/breakdown response.
+type CostBreakdownResponse struct {
+	TotalUSD  float64           `json:"total_usd"`
+	Providers []CostByProvider  `json:"providers"`
+}
+
+// CostByProvider holds cost data for a single provider.
+type CostByProvider struct {
+	Provider    string  `json:"provider"`
+	CostUSD     float64 `json:"cost_usd"`
+	Percentage  float64 `json:"percentage"`
+	Requests    int64   `json:"requests"`
+	Tokens      int64   `json:"tokens"`
+	CostPer1K   float64 `json:"cost_per_1k_tokens"`
+}
+
+// ErrorTrendResponse is the /api/errors/trend response.
+type ErrorTrendResponse struct {
+	Daily         []ErrorTrendPoint `json:"daily"`
+	TotalErrors   int64             `json:"total_errors"`
+	TotalRequests int64             `json:"total_requests"`
+	AvgErrorRate  float64           `json:"avg_error_rate"`
+	Days          int               `json:"days"`
+}
+
+// ErrorTrendPoint represents a single day's error data.
+type ErrorTrendPoint struct {
+	Date       string  `json:"date"`
+	Errors     int64   `json:"errors"`
+	Requests   int64   `json:"requests"`
+	ErrorRate  float64 `json:"error_rate"`
+}
+
+// ErrorRecentResponse is the /api/errors/recent response.
+type ErrorRecentResponse struct {
+	Errors []ErrorRecentEntry `json:"errors"`
+	Total  int                `json:"total"`
+}
+
+// ErrorRecentEntry holds a recent error trace.
+type ErrorRecentEntry struct {
+	ID        string  `json:"id"`
+	Timestamp string  `json:"timestamp"`
+	Provider  string  `json:"provider"`
+	Model     string  `json:"model"`
+	ErrorType string  `json:"error_type"`
+	ErrorMsg  string  `json:"error_msg"`
+	LatencyMS float64 `json:"latency_ms"`
+}

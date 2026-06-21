@@ -46,10 +46,18 @@ func (h *apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.handleModelRankings(w, r)
 	case "/latency":
 		h.handleLatency(w, r)
-	case "/costs":
-		h.handleCosts(w, r)
-	case "/errors":
-		h.handleErrors(w, r)
+case "/costs":
+	h.handleCosts(w, r)
+	case "/costs/trend":
+	h.handleCostTrend(w, r)
+	case "/costs/breakdown":
+	h.handleCostBreakdown(w, r)
+case "/errors":
+	h.handleErrors(w, r)
+	case "/errors/trend":
+	h.handleErrorTrend(w, r)
+	case "/errors/recent":
+	h.handleErrorRecent(w, r)
 	case "/traces":
 		h.handleTraces(w, r)
 	case "/traces/summary":
@@ -1116,6 +1124,226 @@ func (h *apiHandler) handleProviderHealth(w http.ResponseWriter, _ *http.Request
 	sort.Slice(resp.Providers, func(i, j int) bool {
 		return resp.Providers[i].Name < resp.Providers[j].Name
 	})
+
+	h.writeJSON(w, resp)
+}
+
+
+// handleCostTrend returns daily cost breakdown from trace data.
+func (h *apiHandler) handleCostTrend(w http.ResponseWriter, _ *http.Request) {
+	resp := CostTrendResponse{}
+
+	if h.traceStore == nil {
+		h.writeJSON(w, resp)
+		return
+	}
+
+	traces := h.traceStore.Query(TraceQuery{Limit: 10000})
+
+	// Group by date
+	type dayData struct {
+		cost     float64
+		requests int64
+		tokens   int64
+	}
+	dayMap := make(map[string]*dayData)
+
+	for _, t := range traces {
+		date := t.StartedAt.Format("2006-01-02")
+		if _, ok := dayMap[date]; !ok {
+			dayMap[date] = &dayData{}
+		}
+		d := dayMap[date]
+		d.cost += t.CostUSD
+		d.requests++
+		d.tokens += int64(t.TotalTokens)
+	}
+
+	// Convert to sorted slice
+	for date, d := range dayMap {
+		resp.Daily = append(resp.Daily, CostTrendPoint{
+			Date:     date,
+			CostUSD:  d.cost,
+			Requests: d.requests,
+			Tokens:   d.tokens,
+		})
+		resp.TotalUSD += d.cost
+	}
+
+	sort.Slice(resp.Daily, func(i, j int) bool {
+		return resp.Daily[i].Date < resp.Daily[j].Date
+	})
+
+	resp.Days = len(resp.Daily)
+	if resp.Days > 0 {
+		resp.AvgPerDay = resp.TotalUSD / float64(resp.Days)
+	}
+
+	h.writeJSON(w, resp)
+}
+
+// handleCostBreakdown returns cost breakdown by provider.
+func (h *apiHandler) handleCostBreakdown(w http.ResponseWriter, _ *http.Request) {
+	snap := h.registry.Collect()
+
+	type provAccum struct {
+		cost     float64
+		requests int64
+		tokens   int64
+	}
+
+	provMap := make(map[string]*provAccum)
+
+	for _, cs := range snap.Counters {
+		for _, s := range cs.Samples {
+			if len(s.LabelValues) == 0 {
+				continue
+			}
+			prov := s.LabelValues[0]
+			if _, ok := provMap[prov]; !ok {
+				provMap[prov] = &provAccum{}
+			}
+			p := provMap[prov]
+			switch {
+			case strings.HasSuffix(cs.Name, "_cost_usd_total"):
+				p.cost += s.Value
+			case strings.HasSuffix(cs.Name, "_requests_total"):
+				p.requests += int64(s.Value)
+			case strings.HasSuffix(cs.Name, "_tokens_total") && !strings.Contains(cs.Name, "input") && !strings.Contains(cs.Name, "output"):
+				p.tokens += int64(s.Value)
+			}
+		}
+	}
+
+	resp := CostBreakdownResponse{}
+	for name, p := range provMap {
+		resp.TotalUSD += p.cost
+		resp.Providers = append(resp.Providers, CostByProvider{
+			Provider:  name,
+			CostUSD:   p.cost,
+			Requests:  p.requests,
+			Tokens:    p.tokens,
+		})
+	}
+
+	// Calculate percentages and cost per 1K
+	for i := range resp.Providers {
+		if resp.TotalUSD > 0 {
+			resp.Providers[i].Percentage = resp.Providers[i].CostUSD / resp.TotalUSD * 100
+		}
+		if resp.Providers[i].Tokens > 0 {
+			resp.Providers[i].CostPer1K = (resp.Providers[i].CostUSD / float64(resp.Providers[i].Tokens)) * 1000
+		}
+	}
+
+	sort.Slice(resp.Providers, func(i, j int) bool {
+		return resp.Providers[i].CostUSD > resp.Providers[j].CostUSD
+	})
+
+	h.writeJSON(w, resp)
+}
+
+// handleErrorTrend returns daily error rate from trace data.
+func (h *apiHandler) handleErrorTrend(w http.ResponseWriter, _ *http.Request) {
+	resp := ErrorTrendResponse{}
+
+	if h.traceStore == nil {
+		h.writeJSON(w, resp)
+		return
+	}
+
+	traces := h.traceStore.Query(TraceQuery{Limit: 10000})
+
+	type dayData struct {
+		errors   int64
+		requests int64
+	}
+	dayMap := make(map[string]*dayData)
+
+	for _, t := range traces {
+		date := t.StartedAt.Format("2006-01-02")
+		if _, ok := dayMap[date]; !ok {
+			dayMap[date] = &dayData{}
+		}
+		d := dayMap[date]
+		d.requests++
+		if t.Status == "error" {
+			d.errors++
+		}
+	}
+
+	for date, d := range dayMap {
+		errorRate := 0.0
+		if d.requests > 0 {
+			errorRate = float64(d.errors) / float64(d.requests)
+		}
+		resp.Daily = append(resp.Daily, ErrorTrendPoint{
+			Date:      date,
+			Errors:    d.errors,
+			Requests:  d.requests,
+			ErrorRate: errorRate,
+		})
+		resp.TotalErrors += d.errors
+		resp.TotalRequests += d.requests
+	}
+
+	sort.Slice(resp.Daily, func(i, j int) bool {
+		return resp.Daily[i].Date < resp.Daily[j].Date
+	})
+
+	resp.Days = len(resp.Daily)
+	if resp.TotalRequests > 0 {
+		resp.AvgErrorRate = float64(resp.TotalErrors) / float64(resp.TotalRequests)
+	}
+
+	h.writeJSON(w, resp)
+}
+
+// handleErrorRecent returns recent error traces.
+func (h *apiHandler) handleErrorRecent(w http.ResponseWriter, _ *http.Request) {
+	resp := ErrorRecentResponse{}
+
+	if h.traceStore == nil {
+		h.writeJSON(w, resp)
+		return
+	}
+
+	// Query recent error traces
+	traces := h.traceStore.Query(TraceQuery{
+		Status:   "error",
+		Limit:    20,
+		SortDesc: true,
+	})
+
+	for _, t := range traces {
+		// Derive error type from error message
+		errType := "unknown"
+		if strings.Contains(t.Error, "rate_limit") || strings.Contains(t.Error, "429") {
+			errType = "rate_limit"
+		} else if strings.Contains(t.Error, "timeout") || strings.Contains(t.Error, "deadline") {
+			errType = "timeout"
+		} else if strings.Contains(t.Error, "context_length") || strings.Contains(t.Error, "too long") {
+			errType = "context_length"
+		} else if strings.Contains(t.Error, "auth") || strings.Contains(t.Error, "401") || strings.Contains(t.Error, "403") {
+			errType = "auth_error"
+		} else if strings.Contains(t.Error, "500") || strings.Contains(t.Error, "502") || strings.Contains(t.Error, "503") {
+			errType = "server_error"
+		} else if t.Error != "" {
+			errType = "api_error"
+		}
+
+		resp.Errors = append(resp.Errors, ErrorRecentEntry{
+			ID:        t.ID,
+			Timestamp: t.StartedAt.Format(time.RFC3339),
+			Provider:  t.Provider,
+			Model:     t.Model,
+			ErrorType: errType,
+			ErrorMsg:  t.Error,
+			LatencyMS: t.LatencyMS,
+		})
+	}
+
+	resp.Total = len(resp.Errors)
 
 	h.writeJSON(w, resp)
 }

@@ -1113,3 +1113,254 @@ func TestHandleModelRankings_EmptyRegistry(t *testing.T) {
 		t.Errorf("expected 0 rankings for empty registry, got %d", len(resp.ByLatency))
 	}
 }
+
+func TestHandleCostTrend(t *testing.T) {
+	reg := setupRegistry()
+	now := time.Now()
+	store := &mockTraceStore{
+		records: []TraceRecord{
+			{ID: "trace-1", Provider: "openai", Model: "gpt-4o", Status: "success", CostUSD: 0.05, TotalTokens: 500, StartedAt: now.Add(-48 * time.Hour)},
+			{ID: "trace-2", Provider: "openai", Model: "gpt-4o", Status: "success", CostUSD: 0.03, TotalTokens: 300, StartedAt: now.Add(-48 * time.Hour)},
+			{ID: "trace-3", Provider: "anthropic", Model: "claude-3-opus", Status: "success", CostUSD: 0.10, TotalTokens: 1000, StartedAt: now.Add(-24 * time.Hour)},
+			{ID: "trace-4", Provider: "openai", Model: "gpt-4o", Status: "error", Error: "rate limit", StartedAt: now},
+			{ID: "trace-5", Provider: "openai", Model: "gpt-4o", Status: "success", CostUSD: 0.02, TotalTokens: 200, StartedAt: now},
+		},
+	}
+	handler := newAPIHandler(reg, store)
+
+	req := httptest.NewRequest("GET", "/api/costs/trend", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp CostTrendResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
+
+	if resp.Days != 3 {
+		t.Errorf("expected 3 days, got %d", resp.Days)
+	}
+	if resp.TotalUSD < 0.19 || resp.TotalUSD > 0.21 {
+		t.Errorf("expected ~0.20 total cost, got %f", resp.TotalUSD)
+	}
+	if resp.AvgPerDay <= 0 {
+		t.Error("expected positive avg per day")
+	}
+
+	// Verify daily data is sorted by date
+	for i := 1; i < len(resp.Daily); i++ {
+		if resp.Daily[i].Date < resp.Daily[i-1].Date {
+			t.Error("daily data not sorted by date")
+		}
+	}
+}
+
+func TestHandleCostTrend_NilStore(t *testing.T) {
+	reg := setupRegistry()
+	handler := newAPIHandler(reg, nil)
+
+	req := httptest.NewRequest("GET", "/api/costs/trend", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	var resp CostTrendResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.Days != 0 {
+		t.Errorf("expected 0 days with nil store, got %d", resp.Days)
+	}
+}
+
+func TestHandleCostBreakdown(t *testing.T) {
+	reg := setupRegistry()
+	handler := newAPIHandler(reg, nil)
+
+	req := httptest.NewRequest("GET", "/api/costs/breakdown", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp CostBreakdownResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
+
+	if resp.TotalUSD < 2.49 || resp.TotalUSD > 2.51 {
+		t.Errorf("expected ~2.50 total cost, got %f", resp.TotalUSD)
+	}
+
+	if len(resp.Providers) != 2 {
+		t.Fatalf("expected 2 providers, got %d", len(resp.Providers))
+	}
+
+	// Sorted by cost descending
+	if resp.Providers[0].CostUSD < resp.Providers[1].CostUSD {
+		t.Error("expected sorted by cost descending")
+	}
+
+	// Check percentages add up to ~100
+	var totalPct float64
+	for _, p := range resp.Providers {
+		totalPct += p.Percentage
+		if p.Provider == "" {
+			t.Error("expected non-empty provider name")
+		}
+		if p.CostPer1K <= 0 {
+			t.Errorf("expected positive cost per 1K for %s", p.Provider)
+		}
+	}
+	if totalPct < 99.9 || totalPct > 100.1 {
+		t.Errorf("expected percentages to sum to ~100, got %f", totalPct)
+	}
+}
+
+func TestHandleErrorTrend(t *testing.T) {
+	reg := setupRegistry()
+	now := time.Now()
+	store := &mockTraceStore{
+		records: []TraceRecord{
+			{ID: "trace-1", Provider: "openai", Model: "gpt-4o", Status: "success", StartedAt: now.Add(-48 * time.Hour)},
+			{ID: "trace-2", Provider: "openai", Model: "gpt-4o", Status: "error", Error: "rate limit", StartedAt: now.Add(-48 * time.Hour)},
+			{ID: "trace-3", Provider: "anthropic", Model: "claude-3-opus", Status: "success", StartedAt: now.Add(-24 * time.Hour)},
+			{ID: "trace-4", Provider: "anthropic", Model: "claude-3-opus", Status: "success", StartedAt: now.Add(-24 * time.Hour)},
+			{ID: "trace-5", Provider: "openai", Model: "gpt-4o", Status: "error", Error: "timeout", StartedAt: now},
+			{ID: "trace-6", Provider: "openai", Model: "gpt-4o", Status: "success", StartedAt: now},
+		},
+	}
+	handler := newAPIHandler(reg, store)
+
+	req := httptest.NewRequest("GET", "/api/errors/trend", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp ErrorTrendResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
+
+	if resp.Days != 3 {
+		t.Errorf("expected 3 days, got %d", resp.Days)
+	}
+	if resp.TotalErrors != 2 {
+		t.Errorf("expected 2 total errors, got %d", resp.TotalErrors)
+	}
+	if resp.TotalRequests != 6 {
+		t.Errorf("expected 6 total requests, got %d", resp.TotalRequests)
+	}
+	if resp.AvgErrorRate <= 0 || resp.AvgErrorRate >= 1 {
+		t.Errorf("expected error rate between 0 and 1, got %f", resp.AvgErrorRate)
+	}
+
+	// Verify daily data
+	for _, d := range resp.Daily {
+		if d.ErrorRate < 0 || d.ErrorRate > 1 {
+			t.Errorf("invalid error rate for %s: %f", d.Date, d.ErrorRate)
+		}
+	}
+}
+
+func TestHandleErrorTrend_NilStore(t *testing.T) {
+	reg := setupRegistry()
+	handler := newAPIHandler(reg, nil)
+
+	req := httptest.NewRequest("GET", "/api/errors/trend", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	var resp ErrorTrendResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.Days != 0 {
+		t.Errorf("expected 0 days with nil store, got %d", resp.Days)
+	}
+}
+
+func TestHandleErrorRecent(t *testing.T) {
+	reg := setupRegistry()
+	now := time.Now()
+	store := &mockTraceStore{
+		records: []TraceRecord{
+			{ID: "trace-1", Provider: "openai", Model: "gpt-4o", Status: "success", StartedAt: now.Add(-2 * time.Hour)},
+			{ID: "trace-2", Provider: "openai", Model: "gpt-4o", Status: "error", Error: "rate_limit: 429 Too Many Requests", LatencyMS: 50, StartedAt: now.Add(-1 * time.Hour)},
+			{ID: "trace-3", Provider: "anthropic", Model: "claude-3-opus", Status: "error", Error: "context_length_exceeded: input too long", LatencyMS: 100, StartedAt: now.Add(-30 * time.Minute)},
+			{ID: "trace-4", Provider: "openai", Model: "gpt-4o", Status: "error", Error: "500 Internal Server Error", LatencyMS: 200, StartedAt: now},
+		},
+	}
+	handler := newAPIHandler(reg, store)
+
+	req := httptest.NewRequest("GET", "/api/errors/recent", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp ErrorRecentResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
+
+	if resp.Total != 3 {
+		t.Errorf("expected 3 recent errors, got %d", resp.Total)
+	}
+
+	if len(resp.Errors) != 3 {
+		t.Fatalf("expected 3 errors, got %d", len(resp.Errors))
+	}
+
+	// Verify error type classification
+	errTypeMap := make(map[string]int)
+	for _, e := range resp.Errors {
+		errTypeMap[e.ErrorType]++
+		if e.ID == "" {
+			t.Error("expected non-empty ID")
+		}
+		if e.Timestamp == "" {
+			t.Error("expected non-empty timestamp")
+		}
+		if e.Provider == "" {
+			t.Error("expected non-empty provider")
+		}
+	}
+
+	if errTypeMap["rate_limit"] != 1 {
+		t.Errorf("expected 1 rate_limit error, got %d", errTypeMap["rate_limit"])
+	}
+	if errTypeMap["context_length"] != 1 {
+		t.Errorf("expected 1 context_length error, got %d", errTypeMap["context_length"])
+	}
+	if errTypeMap["server_error"] != 1 {
+		t.Errorf("expected 1 server_error error, got %d", errTypeMap["server_error"])
+	}
+}
+
+func TestHandleErrorRecent_NilStore(t *testing.T) {
+	reg := setupRegistry()
+	handler := newAPIHandler(reg, nil)
+
+	req := httptest.NewRequest("GET", "/api/errors/recent", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	var resp ErrorRecentResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.Total != 0 {
+		t.Errorf("expected 0 errors with nil store, got %d", resp.Total)
+	}
+}
