@@ -202,7 +202,6 @@ type ModelRankingEntry struct {
 	Value    float64 `json:"value"`
 }
 
-
 // --- Cost & Error Enhancement Types ---
 
 // CostTrendResponse is the /api/costs/trend response.
@@ -223,18 +222,18 @@ type CostTrendPoint struct {
 
 // CostBreakdownResponse is the /api/costs/breakdown response.
 type CostBreakdownResponse struct {
-	TotalUSD  float64           `json:"total_usd"`
-	Providers []CostByProvider  `json:"providers"`
+	TotalUSD  float64          `json:"total_usd"`
+	Providers []CostByProvider `json:"providers"`
 }
 
 // CostByProvider holds cost data for a single provider.
 type CostByProvider struct {
-	Provider    string  `json:"provider"`
-	CostUSD     float64 `json:"cost_usd"`
-	Percentage  float64 `json:"percentage"`
-	Requests    int64   `json:"requests"`
-	Tokens      int64   `json:"tokens"`
-	CostPer1K   float64 `json:"cost_per_1k_tokens"`
+	Provider   string  `json:"provider"`
+	CostUSD    float64 `json:"cost_usd"`
+	Percentage float64 `json:"percentage"`
+	Requests   int64   `json:"requests"`
+	Tokens     int64   `json:"tokens"`
+	CostPer1K  float64 `json:"cost_per_1k_tokens"`
 }
 
 // ErrorTrendResponse is the /api/errors/trend response.
@@ -248,10 +247,10 @@ type ErrorTrendResponse struct {
 
 // ErrorTrendPoint represents a single day's error data.
 type ErrorTrendPoint struct {
-	Date       string  `json:"date"`
-	Errors     int64   `json:"errors"`
-	Requests   int64   `json:"requests"`
-	ErrorRate  float64 `json:"error_rate"`
+	Date      string  `json:"date"`
+	Errors    int64   `json:"errors"`
+	Requests  int64   `json:"requests"`
+	ErrorRate float64 `json:"error_rate"`
 }
 
 // ErrorRecentResponse is the /api/errors/recent response.
