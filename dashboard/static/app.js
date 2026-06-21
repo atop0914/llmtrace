@@ -527,38 +527,99 @@
 
     // --- Costs ---
     window.refreshCosts = async function() {
+        // Fetch cost trend
         try {
-            var data = await fetchJSON('/api/costs');
-            var models = data.by_model || [];
+            var trend = await fetchJSON('/api/costs/trend');
+            document.getElementById('cost-total').textContent = formatCost(trend.total_usd);
+            document.getElementById('cost-daily-avg').textContent = formatCost(trend.avg_per_day);
+            document.getElementById('cost-days').textContent = trend.days;
 
-            document.getElementById('cost-total').textContent = formatCost(data.total_usd);
+            if (trend.daily && trend.daily.length > 0) {
+                getOrCreateChart('chart-cost-trend', {
+                    type: 'line',
+                    data: {
+                        labels: trend.daily.map(function(d) { return d.date; }),
+                        datasets: [{
+                            label: 'Daily Cost (USD)',
+                            data: trend.daily.map(function(d) { return d.cost_usd; }),
+                            borderColor: COLORS.blue,
+                            backgroundColor: 'rgba(56, 189, 248, 0.1)',
+                            fill: true,
+                            tension: 0.3,
+                            pointRadius: 4,
+                            pointBackgroundColor: COLORS.blue,
+                        }],
+                    },
+                    options: Object.assign({}, CHART_DEFAULTS, {
+                        scales: {
+                            x: Object.assign({}, CHART_DEFAULTS.scales.x),
+                            y: Object.assign({}, CHART_DEFAULTS.scales.y, {
+                                title: { display: true, text: 'USD', color: '#64748b' },
+                                beginAtZero: true,
+                            }),
+                        },
+                    }),
+                });
+            }
+        } catch (e) {
+            console.error('cost trend failed:', e);
+        }
+
+        // Fetch cost breakdown by provider
+        try {
+            var breakdown = await fetchJSON('/api/costs/breakdown');
+            var providers = breakdown.providers || [];
 
             getOrCreateChart('chart-cost-pie', {
                 type: 'doughnut',
                 data: {
-                    labels: models.map(function(m) { return m.provider + '/' + m.model; }),
+                    labels: providers.map(function(p) { return p.provider; }),
                     datasets: [{
-                        data: models.map(function(m) { return m.cost_usd; }),
-                        backgroundColor: PROVIDER_COLORS.slice(0, models.length),
+                        data: providers.map(function(p) { return p.cost_usd; }),
+                        backgroundColor: PROVIDER_COLORS.slice(0, providers.length),
                         borderWidth: 0,
                     }],
                 },
                 options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#94a3b8' }, position: 'right' } } },
             });
 
-            getOrCreateChart('chart-cost-avg', {
+            getOrCreateChart('chart-cost-breakdown', {
                 type: 'bar',
                 data: {
-                    labels: models.map(function(m) { return m.provider + '/' + m.model; }),
+                    labels: providers.map(function(p) { return p.provider; }),
                     datasets: [{
-                        label: 'Avg Cost',
-                        data: models.map(function(m) { return m.avg_cost; }),
-                        backgroundColor: COLORS.green,
+                        label: 'Cost (USD)',
+                        data: providers.map(function(p) { return p.cost_usd; }),
+                        backgroundColor: PROVIDER_COLORS.slice(0, providers.length),
                         borderRadius: 4,
                     }],
                 },
                 options: Object.assign({}, CHART_DEFAULTS, { plugins: { legend: { display: false } } }),
             });
+
+            // Provider breakdown table
+            var btbody = document.querySelector('#cost-breakdown-table tbody');
+            if (btbody) {
+                btbody.innerHTML = '';
+                providers.forEach(function(p) {
+                    var tr = document.createElement('tr');
+                    tr.innerHTML = '<td>' + p.provider + '</td>' +
+                        '<td class="number">' + formatCost(p.cost_usd) + '</td>' +
+                        '<td class="number">' + p.percentage.toFixed(1) + '%</td>' +
+                        '<td class="number">' + formatNumber(p.requests) + '</td>' +
+                        '<td class="number">' + formatNumber(p.tokens) + '</td>' +
+                        '<td class="number">' + formatCost(p.cost_per_1k_tokens) + '</td>';
+                    btbody.appendChild(tr);
+                });
+            }
+        } catch (e) {
+            console.error('cost breakdown failed:', e);
+        }
+
+        // Fetch cost by model
+        try {
+            var data = await fetchJSON('/api/costs');
+            var models = data.by_model || [];
 
             var tbody = document.querySelector('#costs-table tbody');
             tbody.innerHTML = '';
@@ -578,12 +639,71 @@
 
     // --- Errors ---
     window.refreshErrors = async function() {
+        // Fetch error trend
+        try {
+            var trend = await fetchJSON('/api/errors/trend');
+            document.getElementById('errors-total').textContent = trend.total_errors;
+            document.getElementById('errors-rate').textContent = (trend.avg_error_rate * 100).toFixed(2) + '%';
+            document.getElementById('errors-days').textContent = trend.days;
+
+            if (trend.daily && trend.daily.length > 0) {
+                getOrCreateChart('chart-errors-trend', {
+                    type: 'line',
+                    data: {
+                        labels: trend.daily.map(function(d) { return d.date; }),
+                        datasets: [
+                            {
+                                label: 'Error Rate',
+                                data: trend.daily.map(function(d) { return d.error_rate * 100; }),
+                                borderColor: COLORS.red,
+                                backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                fill: true,
+                                tension: 0.3,
+                                pointRadius: 4,
+                                pointBackgroundColor: COLORS.red,
+                                yAxisID: 'y',
+                            },
+                            {
+                                label: 'Requests',
+                                data: trend.daily.map(function(d) { return d.requests; }),
+                                borderColor: COLORS.blue,
+                                backgroundColor: 'transparent',
+                                tension: 0.3,
+                                pointRadius: 3,
+                                yAxisID: 'y1',
+                            },
+                        ],
+                    },
+                    options: Object.assign({}, CHART_DEFAULTS, {
+                        scales: {
+                            x: Object.assign({}, CHART_DEFAULTS.scales.x),
+                            y: Object.assign({}, CHART_DEFAULTS.scales.y, {
+                                title: { display: true, text: 'Error Rate (%)', color: '#64748b' },
+                                position: 'left',
+                                beginAtZero: true,
+                            }),
+                            y1: Object.assign({}, CHART_DEFAULTS.scales.y, {
+                                title: { display: true, text: 'Requests', color: '#64748b' },
+                                position: 'right',
+                                grid: { drawOnChartArea: false },
+                            }),
+                        },
+                    }),
+                });
+            }
+        } catch (e) {
+            console.error('error trend failed:', e);
+        }
+
+        // Fetch errors by type/provider
         try {
             var data = await fetchJSON('/api/errors');
             var byType = data.by_type || [];
             var byProv = data.by_provider || [];
 
-            document.getElementById('errors-total').textContent = data.total_errors;
+            if (!document.getElementById('errors-total').textContent || document.getElementById('errors-total').textContent === '0') {
+                document.getElementById('errors-total').textContent = data.total_errors;
+            }
 
             getOrCreateChart('chart-errors-type', {
                 type: 'doughnut',
@@ -621,6 +741,34 @@
             });
         } catch (e) {
             console.error('errors failed:', e);
+        }
+
+        // Fetch recent errors
+        try {
+            var recent = await fetchJSON('/api/errors/recent');
+            var errors = recent.errors || [];
+
+            var rtbody = document.querySelector('#errors-recent-table tbody');
+            if (rtbody) {
+                rtbody.innerHTML = '';
+                errors.forEach(function(e) {
+                    var tr = document.createElement('tr');
+                    var time = e.timestamp ? new Date(e.timestamp).toLocaleTimeString() : '-';
+                    var errMsg = e.error_msg || '-';
+                    if (errMsg.length > 60) errMsg = errMsg.substring(0, 60) + '...';
+                    tr.innerHTML =
+                        '<td title="' + e.id + '">' + e.id.substring(0, 8) + '</td>' +
+                        '<td>' + time + '</td>' +
+                        '<td>' + e.provider + '</td>' +
+                        '<td>' + e.model + '</td>' +
+                        '<td><span class="badge badge-error">' + e.error_type + '</span></td>' +
+                        '<td title="' + (e.error_msg || '') + '">' + errMsg + '</td>' +
+                        '<td class="number">' + (e.latency_ms ? formatMs(e.latency_ms) + ' ms' : '-') + '</td>';
+                    rtbody.appendChild(tr);
+                });
+            }
+        } catch (e) {
+            console.error('recent errors failed:', e);
         }
     };
 
