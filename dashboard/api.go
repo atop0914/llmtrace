@@ -46,18 +46,18 @@ func (h *apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.handleModelRankings(w, r)
 	case "/latency":
 		h.handleLatency(w, r)
-case "/costs":
-	h.handleCosts(w, r)
+	case "/costs":
+		h.handleCosts(w, r)
 	case "/costs/trend":
-	h.handleCostTrend(w, r)
+		h.handleCostTrend(w, r)
 	case "/costs/breakdown":
-	h.handleCostBreakdown(w, r)
-case "/errors":
-	h.handleErrors(w, r)
+		h.handleCostBreakdown(w, r)
+	case "/errors":
+		h.handleErrors(w, r)
 	case "/errors/trend":
-	h.handleErrorTrend(w, r)
+		h.handleErrorTrend(w, r)
 	case "/errors/recent":
-	h.handleErrorRecent(w, r)
+		h.handleErrorRecent(w, r)
 	case "/traces":
 		h.handleTraces(w, r)
 	case "/traces/summary":
@@ -1128,7 +1128,6 @@ func (h *apiHandler) handleProviderHealth(w http.ResponseWriter, _ *http.Request
 	h.writeJSON(w, resp)
 }
 
-
 // handleCostTrend returns daily cost breakdown from trace data.
 func (h *apiHandler) handleCostTrend(w http.ResponseWriter, _ *http.Request) {
 	resp := CostTrendResponse{}
@@ -1219,10 +1218,10 @@ func (h *apiHandler) handleCostBreakdown(w http.ResponseWriter, _ *http.Request)
 	for name, p := range provMap {
 		resp.TotalUSD += p.cost
 		resp.Providers = append(resp.Providers, CostByProvider{
-			Provider:  name,
-			CostUSD:   p.cost,
-			Requests:  p.requests,
-			Tokens:    p.tokens,
+			Provider: name,
+			CostUSD:  p.cost,
+			Requests: p.requests,
+			Tokens:   p.tokens,
 		})
 	}
 
