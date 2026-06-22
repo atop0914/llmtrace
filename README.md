@@ -19,6 +19,7 @@ LLMTrace wraps LLM client calls with OpenTelemetry spans, capturing token usage,
 - **Rate limiting** — token bucket rate limiter for API call throttling
 - **Middleware pattern** — add logging, hooks, and custom interceptors
 - **Evaluation framework** — composable response quality checks (length, JSON, regex, custom)
+- **Trace export** — export traces to JSON/CSV files with batch buffering and auto-rotation
 - **Prometheus metrics** — built-in metrics collector with `/metrics` endpoint
 - **Unified errors** — consistent error types across all providers
 - **Zero external dependencies** — only depends on OpenTelemetry
@@ -379,6 +380,59 @@ if err != nil {
 | `MaxLatency(d)` | Latency ≤ duration |
 | `ResponseID()` | Response ID is non-empty |
 | `Custom(name, fn)` | User-defined evaluator |
+
+## Trace Export
+
+Export traces to files for compliance, offline analysis, and integration with external tools:
+
+```go
+import "github.com/atop0914/llmtrace/traceexport"
+
+// Export to JSON file
+exp, err := traceexport.NewJSONExporter("traces.json", traceexport.WithIndent())
+if err != nil {
+    log.Fatal(err)
+}
+defer exp.Close()
+
+traces := store.Query(llmtrace.TraceQuery{
+    Since:    time.Now().Add(-24 * time.Hour),
+    Provider: "openai",
+})
+exp.Export(ctx, traces)
+
+// Export to CSV with header
+csv, _ := traceexport.NewCSVExporter("traces.csv", traceexport.WithCSVHeader())
+defer csv.Close()
+csv.Export(ctx, traces)
+
+// Batch export with periodic flush
+batch := traceexport.NewBatchExporter(traceexport.BatchConfig{
+    Exporter:     exp,
+    Interval:     5 * time.Minute,
+    MaxBatchSize: 1000,
+})
+batch.Start(ctx)
+defer batch.Stop()
+
+// Add traces as they come in
+batch.Add(trace1, trace2, ...)
+```
+
+### Auto-rotating File Export
+
+Automatically rotate output files by size or age:
+
+```go
+exp, err := traceexport.NewRotateExporter(traceexport.RotateConfig{
+    Dir:      "/var/log/llmtrace",
+    Prefix:   "traces",
+    Format:   "json",
+    MaxSize:  100 * 1024 * 1024, // rotate at 100MB
+    MaxAge:   24 * time.Hour,    // rotate daily
+    MaxFiles: 10,                // keep last 10 files
+})
+```
 
 ## Error Handling
 

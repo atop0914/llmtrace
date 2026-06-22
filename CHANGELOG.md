@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Trace export package** (`traceexport/`)
+  - `Exporter` interface for composable trace export destinations
+  - `JSONExporter` — write traces as JSON arrays to files or `io.Writer`
+  - `CSVExporter` — write traces as CSV rows with optional header, to files or `io.Writer`
+  - `BatchExporter` — buffer traces and flush periodically or on size threshold
+  - `RotateExporter` — auto-rotate output files by size or age, with max-files cleanup
+  - File-based and writer-based constructors for each exporter format
+  - `WithIndent()` option for pretty-printed JSON output
+  - `WithCSVHeader()` option for CSV header row (written once, shared across exports)
+  - 24 tests covering all exporters: file I/O, in-memory writers, batch flush, rotation, edge cases
+
 - **Evaluation package** (`eval/`)
   - `Evaluator` interface for composable response quality checks
   - 13 built-in evaluators: MinLength, MaxLength, NonEmpty, Contains, ContainsAny, NotContains, ValidJSON, FinishReason, RegexMatch, TokenLimit, MaxLatency, ResponseID, Custom
