@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -353,12 +354,15 @@ func TestCSVExporter_ErrorRow(t *testing.T) {
 // --- Batch Exporter Tests ---
 
 type countingExporter struct {
+	mu      sync.Mutex
 	count   int
 	batches int
 	last    []llmtrace.TraceRecord
 }
 
 func (e *countingExporter) Export(_ context.Context, traces []llmtrace.TraceRecord) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	e.count += len(traces)
 	e.batches++
 	e.last = traces
@@ -368,10 +372,14 @@ func (e *countingExporter) Export(_ context.Context, traces []llmtrace.TraceReco
 func (e *countingExporter) Close() error { return nil }
 
 func (e *countingExporter) getCount() int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	return e.count
 }
 
 func (e *countingExporter) getBatches() int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	return e.batches
 }
 
