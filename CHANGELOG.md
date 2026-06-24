@@ -4,27 +4,54 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-06-24
+
 ### Added
+- **Real-time Dashboard** (`dashboard/`)
+  - Full-featured web dashboard with Go embed, Chart.js, and dark theme
+  - 6 dashboard pages: Overview, Providers, Models, Costs, Errors, Traces
+  - SSE (Server-Sent Events) real-time metric updates
+  - In-memory `TraceStore` for individual LLM call trace history
+  - `/api/metrics`, `/api/traces`, `/api/traces/summary` endpoints
+  - Auto-refresh charts with configurable intervals
+
+- **Provider Health Analysis**
+  - `/api/providers/health` endpoint with error rate, P50/P95/P99 latency percentiles
+  - Cost per 1K tokens efficiency metrics and throughput tracking
+  - Health score with status badges (healthy/degraded/unhealthy)
+  - Latency percentile chart and cost efficiency chart on Providers page
+
+- **Model Analysis Enhancements**
+  - `/api/models/health`, `/api/models/compare`, `/api/models/rankings` endpoints
+  - Model health cards, comparison table, and performance rankings
+  - Token efficiency and latency analysis per model
+
+- **Cost & Error Monitoring**
+  - `/api/costs/trend` with daily cost aggregation from traces
+  - `/api/costs/breakdown` with provider-level cost analysis
+  - `/api/errors/trend` with daily error rate tracking
+  - `/api/errors/recent` with recent error trace details
+  - Enhanced Costs page with trend chart, provider breakdown table
+  - Enhanced Errors page with error rate trend chart, recent errors table
+
 - **Trace export package** (`traceexport/`)
   - `Exporter` interface for composable trace export destinations
   - `JSONExporter` — write traces as JSON arrays to files or `io.Writer`
   - `CSVExporter` — write traces as CSV rows with optional header, to files or `io.Writer`
   - `BatchExporter` — buffer traces and flush periodically or on size threshold
   - `RotateExporter` — auto-rotate output files by size or age, with max-files cleanup
-  - File-based and writer-based constructors for each exporter format
-  - `WithIndent()` option for pretty-printed JSON output
-  - `WithCSVHeader()` option for CSV header row (written once, shared across exports)
   - 24 tests covering all exporters: file I/O, in-memory writers, batch flush, rotation, edge cases
 
 - **Evaluation package** (`eval/`)
   - `Evaluator` interface for composable response quality checks
   - 13 built-in evaluators: MinLength, MaxLength, NonEmpty, Contains, ContainsAny, NotContains, ValidJSON, FinishReason, RegexMatch, TokenLimit, MaxLatency, ResponseID, Custom
   - `Suite` for grouping and running multiple evaluators together
-  - `Suite.Validate()` returns structured errors with failed evaluator details
   - `Suite.Middleware()` integrates with the llmtrace middleware pipeline
-  - `EvalFunc` adapter for inline evaluator creation
   - 45 tests covering all evaluators, suite logic, middleware integration, and edge cases
-  - Benchmarks: Suite.Run ~7,700 ns/op, MinLength ~450 ns/op, ValidJSON ~1,170 ns/op
+
+- **Integration tests & examples**
+  - Example programs: basic, dashboard, middleware, streaming
+  - Integration tests for cross-package workflows
 
 ## [1.0.0] - 2026-06-02
 
