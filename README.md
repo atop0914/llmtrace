@@ -24,6 +24,7 @@ LLMTrace wraps LLM client calls with OpenTelemetry spans, capturing token usage,
 - **Middleware pattern** — add logging, hooks, and custom interceptors
 - **Structured logging** — `log/slog` integration with content sanitization
 - **Evaluation framework** — composable response quality checks (length, JSON, regex, custom)
+- **Guardrails** — real-time input/output validation with 14 built-in rules (block/warn severity, fail-open mode)
 - **Trace export** — export traces to JSON/CSV files with batch buffering and auto-rotation
 - **Prometheus metrics** — built-in metrics collector with `/metrics` endpoint
 - **Real-time dashboard** — web UI with Chart.js, SSE updates, 6 monitoring pages
@@ -742,6 +743,63 @@ if err != nil {
 | `MaxLatency(d)` | Latency <= duration |
 | `ResponseID()` | Response ID is non-empty |
 | `Custom(name, fn)` | User-defined evaluator |
+## Guardrails
+
+Enforce input/output policies in real-time as middleware. Unlike Eval (post-hoc quality checks) and Sanitizer (PII redaction), Guardrails validate **before** the LLM call and **after** the response:
+
+```go
+import "github.com/atop0914/llmtrace/guardrails"
+
+gate := guardrails.NewGate(
+    guardrails.WithInputRules(
+        guardrails.MaxPromptLength(4096),
+        guardrails.BlockedTerms([]string{"jailbreak", "ignore instructions"}),
+        guardrails.RequiredRoles(llmtrace.RoleSystem, llmtrace.RoleUser),
+    ),
+    guardrails.WithOutputRules(
+        guardrails.MinResponseLength(10),
+        guardrails.RequiredFinishReason("stop"),
+        guardrails.MaxTokenUsage(10000),
+    ),
+)
+
+// Optional: log violations
+gate.OnViolation(func(v guardrails.Violation) {
+    log.Printf("guardrail violation: %s (%s) - %s", v.RuleName, v.Severity, v.Message)
+})
+
+// Use as middleware
+resp, err := tracer.Chat(ctx, req, provider,
+    llmtrace.WithCallMiddleware(gate.Middleware()),
+)
+```
+
+### Built-in Rules
+
+| Rule | Side | Severity | Description |
+|------|------|----------|-------------|
+| `MaxPromptLength(n)` | Input | Block | Total prompt chars <= n |
+| `MinPromptLength(n)` | Input | Warn | Total prompt chars >= n |
+| `MaxMessages(n)` | Input | Block | Message count <= n |
+| `BlockedTerms(terms)` | Input | Block | Prompt must not contain terms |
+| `WarnedTerms(terms)` | Input | Warn | Warn on terms in prompt |
+| `BlockedPattern(name, re)` | Input | Block | Prompt must not match regex |
+| `WarnedPattern(name, re)` | Input | Warn | Warn on regex match |
+| `RequiredRoles(roles...)` | Input | Block | Conversation must have roles |
+| `MinResponseLength(n)` | Output | Warn | Response chars >= n |
+| `MaxResponseLength(n)` | Output | Block | Response chars <= n |
+| `RequiredFinishReason(r...)` | Output | Warn | Finish reason in allowed set |
+| `BlockedOutputTerms(terms)` | Output | Block | Response must not contain terms |
+| `MaxTokenUsage(n)` | Output | Block | Total tokens <= n |
+| `OutputMustMatch(name, re)` | Output | Block | Response must match pattern |
+| `OutputMustNotMatch(name, re)` | Output | Block | Response must not match pattern |
+
+### Configuration Options
+
+- **`WithFailOpen(true)`** — Allow calls to proceed even when block-level rules trigger (default: fail-closed)
+- **`gate.Stats()`** — Get violation counts by rule name
+- **`gate.StreamMiddleware()`** — Enforce guardrails on streaming calls
+
 ## Webhook Alerts
 
 Send alert notifications via webhooks when thresholds are exceeded:

@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **Guardrails package** (`guardrails/`)
+  - Composable input and output validators for LLM calls
+  - `Gate` enforces rules as middleware in the call pipeline
+  - 14 built-in rules: MaxPromptLength, MinPromptLength, MaxMessages, BlockedTerms, WarnedTerms, BlockedPattern, WarnedPattern, RequiredRoles, MinResponseLength, MaxResponseLength, RequiredFinishReason, BlockedOutputTerms, MaxTokenUsage, OutputMustMatch/NotMatch
+  - `Severity` levels: Warn (log + allow) and Block (return error)
+  - `FailOpen` mode for lenient enforcement
+  - `OnViolation` callback for custom alerting/logging
+  - `GateStats` for tracking violation counts by rule
+  - `StreamMiddleware` support for streaming LLM calls
+  - 29 tests covering all rules, gate behavior, callbacks, stats, and streaming
+
 ## [2.1.0] - 2026-06-24
 
 ### Added
