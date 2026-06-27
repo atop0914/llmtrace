@@ -94,11 +94,6 @@ func (m *Manager) ValidateTokenCount(model string, inputTokens, maxTokens int) C
 func (m *Manager) validateFromTokens(model string, info ModelInfo, inputTokens, maxTokens int) CheckResult {
 	available := info.ContextWindow - inputTokens
 
-	outputLimit := maxTokens
-	if outputLimit <= 0 {
-		outputLimit = info.MaxOutputTokens
-	}
-
 	suggested := min(available, info.MaxOutputTokens)
 	if suggested < 0 {
 		suggested = 0
@@ -208,10 +203,7 @@ func (m *Manager) TruncateToFit(model string, messages []Message, maxTokens int)
 		sysTokens := EstimateTokens(formatMessages([]Message{msg}), info.CharsPerToken)
 		available -= sysTokens
 		if available <= 0 {
-			if systemMsg != nil {
-				return []Message{*systemMsg}, true
-			}
-			return nil, true
+			return []Message{*systemMsg}, true
 		}
 	}
 
