@@ -325,25 +325,10 @@ func EstimateTokens(msgs []RenderedMessage) int {
 
 // Variables extracts the variable names referenced in a template.
 func Variables(content string) ([]string, error) {
-	tmpl, err := template.New("extract").Parse(content)
-	if err != nil {
+	if _, err := template.New("extract").Parse(content); err != nil {
 		return nil, err
 	}
-	// Walk the parsed tree to find field references
-	var vars []string
-	seen := make(map[string]bool)
-	walkTree(tmpl.Tree.Root, &vars, seen)
-	sort.Strings(vars)
-	return vars, nil
-}
-
-func walkTree(node interface{}, vars *[]string, seen map[string]bool) {
-	type nodeInterface interface {
-		String() string
-	}
-	// Simple approach: extract {{.VarName}} patterns from the template string
-	// This is a pragmatic approach since template.Tree walking requires
-	// reflecting on unexported types
+	return VariablesFromContent(content), nil
 }
 
 // VariablesFromContent extracts variable names from template content using string parsing.
