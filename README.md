@@ -25,6 +25,10 @@ LLMTrace wraps LLM client calls with OpenTelemetry spans, capturing token usage,
 - **Structured logging** — `log/slog` integration with content sanitization
 - **Evaluation framework** — composable response quality checks (length, JSON, regex, custom)
 - **Guardrails** — real-time input/output validation with 14 built-in rules (block/warn severity, fail-open mode)
+- **Token counting** — estimate tokens, validate context windows, manage costs before API calls
+- **Prompt templates** — versioned templates with variable substitution and A/B testing
+- **Session tracking** — multi-turn conversation history with automatic token counting
+- **Token middleware** — observability middleware for automatic token usage and cost tracking
 - **Trace export** — export traces to JSON/CSV files with batch buffering and auto-rotation
 - **Prometheus metrics** — built-in metrics collector with `/metrics` endpoint
 - **Real-time dashboard** — web UI with Chart.js, SSE updates, 6 monitoring pages
@@ -800,6 +804,186 @@ resp, err := tracer.Chat(ctx, req, provider,
 - **`gate.Stats()`** — Get violation counts by rule name
 - **`gate.StreamMiddleware()`** — Enforce guardrails on streaming calls
 
+## Token Counting & Context Window Management
+
+Estimate tokens, validate context windows, and manage costs before making API calls:
+
+```go
+import "github.com/atop0914/llmtrace/tokencount"
+
+// Create a manager with default model registry
+mgr := tokencount.NewManager()
+
+// Estimate tokens for a text
+tokens := tokencount.EstimateTokens("Hello, world!", 4.0)
+
+// Validate a request against a model's context window
+messages := []tokencount.Message{
+    {Role: "system", Content: "You are a helpful assistant."},
+    {Role: "user", Content: "Explain quantum computing."},
+}
+check := mgr.ValidateRequest("gpt-4o", messages, 500)
+if !check.FitsContext {
+    log.Printf("Request exceeds context window: %d tokens", check.InputTokens)
+}
+
+// Estimate cost before making the call
+cost, _ := mgr.EstimateCost("gpt-4o", check.InputTokens, 500)
+log.Printf("Estimated cost: $%.6f", cost)
+
+// Truncate conversation to fit within limits
+truncated := mgr.TruncateToFit("gpt-4o", messages, 500)
+
+// Get model recommendations based on requirements
+recommendations := mgr.RecommendModels(tokencount.Requirements{
+    InputTokens:  5000,
+    OutputTokens: 1000,
+    MaxCostUSD:   0.01,
+})
+```
+
+### Supported Models
+
+The tokencount package includes a built-in registry with pricing and context windows for:
+- OpenAI: gpt-4o, gpt-4o-mini, gpt-4-turbo, gpt-3.5-turbo
+- Anthropic: claude-sonnet-4-20250514, claude-haiku-4-20250414
+- Google: gemini-2.0-flash, gemini-2.0-flash-lite
+- Ollama: llama3, mistral, phi3
+
+### Token Estimation
+
+Token estimation uses a configurable characters-per-token ratio (default: 4.0 for English text):
+
+```go
+// Custom estimation ratio for CJK text (typically ~2 chars/token)
+tokens := tokencount.EstimateTokens("你好世界", 2.0)
+```
+
+## Prompt Template Management
+
+Manage versioned prompt templates with variable substitution and A/B testing:
+
+```go
+import "github.com/atop0914/llmtrace/prompt"
+
+// Create a registry
+reg := prompt.NewRegistry()
+
+// Register versioned templates
+reg.Register(prompt.Template{
+    Name:    "system",
+    Version: "1.0",
+    Content: "You are a helpful {{.Domain}} assistant. Be {{.Tone}}.",
+    Vars: []prompt.VarDef{
+        {Name: "Domain", Required: true, Default: "general"},
+        {Name: "Tone", Required: false, Default: "concise"},
+    },
+    Tags: []string{"system", "v1"},
+})
+
+// Render a template
+result, err := reg.Render("system", "1.0", map[string]string{
+    "Domain": "Go programming",
+    "Tone":   "friendly",
+})
+
+// Get the latest version
+latest := reg.Latest("system")
+
+// A/B testing with variant selection
+ab := prompt.NewAB(reg, prompt.WithSeed(42))
+variant, err := ab.Select("system", []string{"1.0", "2.0"})
+```
+
+### Template Features
+
+- **Versioning** — Track and compare template versions
+- **Variable validation** — Required/optional variables with defaults
+- **Tags** — Categorize templates for filtering
+- **A/B testing** — Deterministic variant selection for experiments
+- **Diff** — Compare template versions side-by-side
+
+## Multi-turn Conversation Session Tracking
+
+Track conversation history with automatic token counting and context management:
+
+```go
+import "github.com/atop0914/llmtrace/session"
+
+// Create a session manager
+mgr := session.NewManager(
+    session.WithMaxSessions(100),
+    session.WithDefaultTTL(1 * time.Hour),
+    session.WithManagerMaxTurns(20),
+)
+
+// Create a session with metadata
+sess := mgr.Create(
+    session.WithSystemPrompt("You are a helpful Go programming assistant."),
+    session.WithMetadata("user_id", "user-123"),
+)
+
+// Add messages to the conversation
+sess.AddUserMessage("What is Go?")
+sess.AddAssistantMessage("Go is an open-source programming language...")
+
+// Get conversation history for API calls
+messages := sess.Messages()  // Returns []llmtrace.Message
+
+// Track token usage
+totalTokens := sess.TotalTokens()
+
+// Check session health
+if sess.IsExpired() {
+    log.Println("Session expired, creating new one")
+}
+
+// Get session statistics
+stats := sess.Stats()
+log.Printf("Turns: %d, Tokens: %d", stats.TurnCount, stats.TotalTokens)
+```
+
+### Session Configuration
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `WithMaxSessions(n)` | Maximum concurrent sessions | 1000 |
+| `WithDefaultTTL(d)` | Session expiration time | 24h |
+| `WithManagerMaxTurns(n)` | Max turns per session | 100 |
+| `WithCleanupInterval(d)` | Cleanup frequency for expired sessions | 5m |
+
+## Token Counting Middleware
+
+Automatically track token usage and costs as observability middleware:
+
+```go
+import "github.com/atop0914/llmtrace/tokencount"
+
+// Create token counter with default settings
+counter := tokencount.NewCounter()
+
+// Use as middleware in the tracer
+resp, err := tracer.Chat(ctx, req, provider,
+    llmtrace.WithCallMiddleware(counter.Middleware()),
+)
+
+// Get aggregated token statistics
+stats := counter.Stats()
+log.Printf("Total tokens: %d, Total cost: $%.4f", stats.TotalTokens, stats.TotalCost)
+log.Printf("Average tokens per request: %.1f", stats.AvgTokensPerRequest)
+
+// Reset statistics
+counter.Reset()
+```
+
+### Token Counting Features
+
+- **Automatic tracking** — Captures input/output tokens from every LLM response
+- **Cost calculation** — Real-time cost accumulation based on model pricing
+- **Per-model breakdown** — Separate statistics for each model used
+- **Middleware integration** — Works seamlessly with the existing middleware chain
+- **Thread-safe** — Safe for concurrent use in production environments
+
 ## Webhook Alerts
 
 Send alert notifications via webhooks when thresholds are exceeded:
@@ -1102,6 +1286,10 @@ llmtrace/
 +-- metrics/                # Prometheus-compatible metrics
 +-- dashboard/              # Web dashboard (API + static UI)
 +-- eval/                   # Evaluation framework
++-- guardrails/             # Input/output validation rules
++-- tokencount/             # Token estimation & context window management
++-- prompt/                 # Versioned prompt templates
++-- session/                # Multi-turn conversation tracking
 +-- traceexport/            # Trace file export (JSON/CSV/rotate)
 +-- webhook/                # Webhook alert notifications
 +-- configwatch/            # Config file hot-reload
@@ -1111,6 +1299,9 @@ llmtrace/
 |   +-- dashboard/
 |   +-- middleware/
 |   +-- streaming/
+|   +-- tokencount/
+|   +-- prompt/
+|   +-- session/
 +-- .github/workflows/      # CI/CD
 ```
 

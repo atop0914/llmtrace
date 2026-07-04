@@ -16,6 +16,37 @@ All notable changes to this project will be documented in this file.
   - `StreamMiddleware` support for streaming LLM calls
   - 29 tests covering all rules, gate behavior, callbacks, stats, and streaming
 
+- **Token Counting & Context Window Management** (`tokencount/`)
+  - Token estimation with configurable characters-per-token ratio
+  - Context window validation for 15+ LLM models
+  - Cost estimation before API calls
+  - Conversation truncation to fit within limits
+  - Model recommendations based on requirements
+  - Built-in model registry with pricing and context window data
+
+- **Prompt Template Management** (`prompt/`)
+  - Versioned prompt templates with Go template syntax
+  - Variable definitions with required/optional and defaults
+  - Template rendering with validation
+  - A/B testing with deterministic variant selection
+  - Template diff for version comparison
+  - Tag-based categorization and filtering
+
+- **Multi-turn Conversation Session Tracking** (`session/`)
+  - Session manager with configurable limits (max sessions, TTL, max turns)
+  - Conversation history tracking with automatic token counting
+  - System prompt and metadata support
+  - Session statistics and health monitoring
+  - Automatic cleanup of expired sessions
+  - Thread-safe concurrent access
+
+- **Token Counting Middleware** (`tokencount/`)
+  - Automatic token usage tracking from LLM responses
+  - Real-time cost accumulation based on model pricing
+  - Per-model statistics breakdown
+  - Middleware integration with existing call pipeline
+  - Thread-safe for production use
+
 ## [2.1.0] - 2026-06-24
 
 ### Added
