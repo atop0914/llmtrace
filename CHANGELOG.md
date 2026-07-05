@@ -4,6 +4,51 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-07-05
+
+### Added
+- **Guardrails package** (`guardrails/`)
+  - Composable input and output validators for LLM calls
+  - `Gate` enforces rules as middleware in the call pipeline
+  - 14 built-in rules: MaxPromptLength, MinPromptLength, MaxMessages, BlockedTerms, WarnedTerms, BlockedPattern, WarnedPattern, RequiredRoles, MinResponseLength, MaxResponseLength, RequiredFinishReason, BlockedOutputTerms, MaxTokenUsage, OutputMustMatch/NotMatch
+  - `Severity` levels: Warn (log + allow) and Block (return error)
+  - `FailOpen` mode for lenient enforcement
+  - `OnViolation` callback for custom alerting/logging
+  - `GateStats` for tracking violation counts by rule
+  - `StreamMiddleware` support for streaming LLM calls
+  - 29 tests covering all rules, gate behavior, callbacks, stats, and streaming
+
+- **Token Counting & Context Window Management** (`tokencount/`)
+  - Token estimation with configurable characters-per-token ratio
+  - Context window validation for 15+ LLM models
+  - Cost estimation before API calls
+  - Conversation truncation to fit within limits
+  - Model recommendations based on requirements
+  - Built-in model registry with pricing and context window data
+
+- **Prompt Template Management** (`prompt/`)
+  - Versioned prompt templates with Go template syntax
+  - Variable definitions with required/optional and defaults
+  - Template rendering with validation
+  - A/B testing with deterministic variant selection
+  - Template diff for version comparison
+  - Tag-based categorization and filtering
+
+- **Multi-turn Conversation Session Tracking** (`session/`)
+  - Session manager with configurable limits (max sessions, TTL, max turns)
+  - Conversation history tracking with automatic token counting
+  - System prompt and metadata support
+  - Session statistics and health monitoring
+  - Automatic cleanup of expired sessions
+  - Thread-safe concurrent access
+
+- **Token Counting Middleware** (`tokencount/`)
+  - Automatic token usage tracking from LLM responses
+  - Real-time cost accumulation based on model pricing
+  - Per-model statistics breakdown
+  - Middleware integration with existing call pipeline
+  - Thread-safe for production use
+
 ## [2.1.0] - 2026-06-24
 
 ### Added
