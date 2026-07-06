@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **Provider Load Balancer** (`loadbalancer/`)
+  - Distribute LLM requests across multiple provider instances
+  - 4 strategies: RoundRobin, LeastLatency, Random, Weighted
+  - Automatic health tracking with exponential moving average latency
+  - Failover to healthy endpoints on provider errors
+  - Configurable health check probes for unhealthy endpoint recovery
+  - Thread-safe concurrent access with atomic counters
+  - Implements `llmtrace.Provider` interface for seamless integration
+  - 24 tests and 6 benchmarks
+
 ## [2.2.0] - 2026-07-05
 
 ### Added

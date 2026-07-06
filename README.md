@@ -34,6 +34,7 @@ LLMTrace wraps LLM client calls with OpenTelemetry spans, capturing token usage,
 - **Real-time dashboard** — web UI with Chart.js, SSE updates, 6 monitoring pages
 - **Unified errors** — consistent error types across all providers
 - **Config hot-reload** — watch config file changes and apply without restart
+- **Provider load balancing** — distribute requests across multiple instances with round-robin, least-latency, random, or weighted strategies
 
 ## Installation
 
@@ -256,6 +257,45 @@ resp, err := tracer.Chat(ctx, req, provider,
     llmtrace.WithCallMiddleware(llmtrace.WithBudget(budget)),
 )
 ```
+
+## Load Balancing
+
+Distribute requests across multiple provider instances:
+
+```go
+import "github.com/atop0914/llmtrace/loadbalancer"
+
+// Create multiple provider instances (e.g., different API keys)
+openai1 := openai.New(openai.WithAPIKey("sk-key-1"))
+openai2 := openai.New(openai.WithAPIKey("sk-key-2"))
+
+// Create a load balancer
+lb := loadbalancer.New(
+    loadbalancer.WithStrategy(loadbalancer.RoundRobin),
+    loadbalancer.WithEndpoints(
+        loadbalancer.NewEndpoint("key-1", openai1),
+        loadbalancer.NewEndpoint("key-2", openai2),
+    ),
+)
+
+// Use as a provider — seamless integration
+resp, err := tracer.Chat(ctx, req, lb)
+```
+
+**Strategies:**
+| Strategy | Description |
+|----------|-------------|
+| `RoundRobin` | Sequential distribution across endpoints |
+| `LeastLatency` | Route to the fastest endpoint (EMA-based) |
+| `Random` | Random healthy endpoint selection |
+| `Weighted` | Proportional distribution by weight |
+
+**Features:**
+- Automatic health tracking — endpoints marked unhealthy after 3 consecutive failures
+- Failover — automatically tries another endpoint on error
+- Health probes — periodic checks to recover unhealthy endpoints
+- Per-endpoint stats — latency, error rate, call count
+
 
 ## Middleware
 
