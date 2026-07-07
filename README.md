@@ -35,6 +35,7 @@ LLMTrace wraps LLM client calls with OpenTelemetry spans, capturing token usage,
 - **Unified errors** — consistent error types across all providers
 - **Config hot-reload** — watch config file changes and apply without restart
 - **Provider load balancing** — distribute requests across multiple instances with round-robin, least-latency, random, or weighted strategies
+- **Streaming metrics** — track TTFT, inter-chunk latency percentiles, and tokens-per-second for streaming responses
 
 ## Installation
 
@@ -149,6 +150,39 @@ for chunk := range ch {
     fmt.Print(chunk.Content)
 }
 ```
+
+### Streaming Metrics
+
+Monitor streaming performance with real-time TTFT, inter-chunk latency, and throughput tracking:
+
+```go
+import "github.com/atop0914/llmtrace/streammetric"
+
+// Method 1: Direct collector usage
+collector := streammetric.NewCollector()
+ch, _ := tracer.ChatStream(ctx, req, provider)
+wrappedCh := collector.Wrap(ch)
+
+for chunk := range wrappedCh {
+    fmt.Print(chunk.Content)
+}
+
+m := collector.Metrics()
+fmt.Printf("TTFT: %v | TPS: %.1f | Chunks: %d\n", m.TTFT, m.TokensPerSecond, m.ChunkCount)
+fmt.Printf("ICL P50: %v | P99: %v\n", m.P50InterChunkLatency, m.P99InterChunkLatency)
+
+// Method 2: Automatic via StreamMiddleware
+metricsMW := streammetric.WithStreamMetrics(func(req *llmtrace.Request, m streammetric.Metrics) {
+    slog.Info("stream complete",
+        "model", req.Model,
+        "ttft", m.TTFT,
+        "tps", m.TokensPerSecond,
+        "p99_icl", m.P99InterChunkLatency,
+    )
+})
+streamFn := llmtrace.ChainStream(metricsMW)(provider.Stream)
+```
+
 ## Rate Limiting
 
 Control API call rates with the token bucket rate limiter:

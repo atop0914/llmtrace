@@ -15,6 +15,16 @@ All notable changes to this project will be documented in this file.
   - Implements `llmtrace.Provider` interface for seamless integration
   - 24 tests and 6 benchmarks
 
+- **Streaming Metrics** (`streammetric/`)
+  - Real-time performance metrics for streaming LLM responses
+  - Time to First Token (TTFT) measurement
+  - Inter-chunk latency tracking with P50/P99 percentiles
+  - Tokens per second (TPS) throughput calculation
+  - Live monitoring via `TTFT()` and `ChunkCount()` methods
+  - `WithStreamMetrics()` StreamMiddleware for automatic per-call collection
+  - Thread-safe with atomic operations for concurrent access
+  - 16 tests and 4 benchmarks (137ns per record, zero allocs)
+
 ## [2.2.0] - 2026-07-05
 
 ### Added
