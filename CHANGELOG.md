@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Distributed Tracing Propagation** (`propagation/`)
+  - W3C Trace Context standard implementation (`traceparent` + `tracestate` headers)
+  - Carrier abstraction for HTTP headers, gRPC metadata, or custom transports
+  - `Extract()` / `Inject()` for trace context propagation across service boundaries
+  - `MapCarrier` for testing, `HTTPCarrier` for HTTP integration
+  - Server-side `Middleware()` extracts trace context from incoming requests
+  - Client-side `ClientMiddleware()` injects trace context into outgoing requests
+  - Context helpers: `ContextWithSpanContext()` / `SpanContextFromContext()`
+  - `FormatTraceParent()` for manual traceparent construction
+  - Full tracestate round-trip preservation (vendor-specific key-value pairs)
+  - 28 tests and 4 benchmarks (~310ns parse, ~490ns inject, ~790ns extract)
+
 - **Provider Load Balancer** (`loadbalancer/`)
   - Distribute LLM requests across multiple provider instances
   - 4 strategies: RoundRobin, LeastLatency, Random, Weighted
