@@ -208,7 +208,7 @@ func (tc *TraceContext) InjectIntoMap(spanCtx trace.SpanContext, m map[string]st
 // FormatTraceParent formats a traceparent header value from trace ID, span ID, and flags.
 // Returns an error if the inputs are invalid.
 func FormatTraceParent(traceID trace.TraceID, spanID trace.SpanID, sampled bool) (string, error) {
-	if traceID.IsValid() == false && traceID != (trace.TraceID{}) {
+	if !traceID.IsValid() && traceID != (trace.TraceID{}) {
 		return "", ErrInvalidTraceID
 	}
 
@@ -291,7 +291,6 @@ func parseTraceParent(tp string) (trace.SpanContext, error) {
 
 	return trace.NewSpanContext(config[0]), nil
 }
-
 
 // context key for storing extracted SpanContext
 type spanContextKey struct{}
