@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Async Batch Request Support** (`batch/`)
+  - Concurrent execution of multiple LLM requests with configurable parallelism
+  - Semaphore-based concurrency control (`MaxConcurrency`)
+  - Per-item and overall batch timeouts
+  - Error handling strategies: continue on failure or cancel entire batch
+  - Aggregate metrics: total tokens, input/output breakdown, latency stats (min/avg/max)
+  - Per-item progress callbacks for real-time monitoring
+  - Metadata passthrough from batch items to results
+  - Order-preserving results despite concurrent execution
+  - Context cancellation propagation to all in-flight requests
+  - Implements `llmtrace.Provider` integration via `Complete` method
+  - 16 tests and 4 benchmarks (~14μs/10req, ~62μs/50req, ~123μs/100req)
+
 - **Distributed Tracing Propagation** (`propagation/`)
   - W3C Trace Context standard implementation (`traceparent` + `tracestate` headers)
   - Carrier abstraction for HTTP headers, gRPC metadata, or custom transports
