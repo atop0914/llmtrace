@@ -162,11 +162,10 @@ type entry struct {
 
 // CacheStats holds semantic cache performance statistics.
 type CacheStats struct {
-	Hits      int64
-	Misses    int64
-	Size      int
-	AvgScore  float64 // rolling average similarity of hits
-	totalHits float64 // internal: sum of hit scores for avg calculation
+	Hits     int64
+	Misses   int64
+	Size     int
+	AvgScore float64 // rolling average similarity of hits
 }
 
 // HitRate returns the cache hit rate as a percentage (0.0-1.0).
@@ -181,12 +180,12 @@ func (s CacheStats) HitRate() float64 {
 // Cache is a thread-safe semantic cache that stores embeddings alongside
 // cached responses and uses cosine similarity for retrieval.
 type Cache struct {
-	mu      sync.RWMutex
-	config  Config
-	entries []entry // ordered by insertion for LRU
-	vectors [][]float64 // parallel array of embeddings for fast search
-	hits    int64
-	misses  int64
+	mu         sync.RWMutex
+	config     Config
+	entries    []entry     // ordered by insertion for LRU
+	vectors    [][]float64 // parallel array of embeddings for fast search
+	hits       int64
+	misses     int64
 	totalScore float64 // sum of hit similarities
 }
 
