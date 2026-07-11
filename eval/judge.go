@@ -257,10 +257,10 @@ func (j *Judge) Eval(ctx context.Context, req *llmtrace.Request, resp *llmtrace.
 	passed := avgScore >= j.config.PassThreshold
 
 	return Result{
-		Name:    j.Name(),
-		Passed:  passed,
-		Score:   avgScore / float64(j.config.MaxScore), // normalize to 0.0–1.0
-		Message: j.formatMessage(scores, reasoning, avgScore),
+		Name:     j.Name(),
+		Passed:   passed,
+		Score:    avgScore / float64(j.config.MaxScore), // normalize to 0.0–1.0
+		Message:  j.formatMessage(scores, reasoning, avgScore),
 		Duration: time.Since(start),
 	}
 }
@@ -287,7 +287,7 @@ func (j *Judge) buildPrompt(req *llmtrace.Request, resp *llmtrace.Response) stri
 	sb.WriteString(".\n\n")
 
 	for _, c := range j.config.Criteria {
-		sb.WriteString(fmt.Sprintf("### %s\n%s\n\n", c.Name, c.Rubric))
+		fmt.Fprintf(&sb, "### %s\n%s\n\n", c.Name, c.Rubric)
 	}
 
 	if j.config.JSONOutput {
@@ -453,7 +453,7 @@ func formatMessages(msgs []llmtrace.Message) string {
 	var sb strings.Builder
 	for _, m := range msgs {
 		if m.Role != "" {
-			sb.WriteString(fmt.Sprintf("[%s] ", m.Role))
+			fmt.Fprintf(&sb, "[%s] ", m.Role)
 		}
 		sb.WriteString(m.Content)
 		sb.WriteString("\n")
@@ -476,17 +476,17 @@ func averageScore(scores map[string]int) float64 {
 // formatMessage creates a human-readable summary of judge results.
 func (j *Judge) formatMessage(scores map[string]int, reasoning string, avgScore float64) string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("avg=%.1f/%d (%s)\n",
-		math.Round(avgScore*10)/10, j.config.MaxScore, passFailStr(avgScore >= j.config.PassThreshold)))
+	fmt.Fprintf(&sb, "avg=%.1f/%d (%s)\n",
+		math.Round(avgScore*10)/10, j.config.MaxScore, passFailStr(avgScore >= j.config.PassThreshold))
 
 	for _, c := range j.config.Criteria {
 		if score, ok := scores[c.Name]; ok {
-			sb.WriteString(fmt.Sprintf("  %s: %d/%d\n", c.Name, score, j.config.MaxScore))
+			fmt.Fprintf(&sb, "  %s: %d/%d\n", c.Name, score, j.config.MaxScore)
 		}
 	}
 
 	if reasoning != "" {
-		sb.WriteString(fmt.Sprintf("  reasoning: %s", reasoning))
+		fmt.Fprintf(&sb, "  reasoning: %s", reasoning)
 	}
 
 	return strings.TrimSpace(sb.String())
