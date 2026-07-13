@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Text Embedding Package** (`embedding/`)
+  - `Provider` interface for generating vector embeddings from text
+  - OpenAI Embeddings API implementation (`text-embedding-3-small/large`, `text-embedding-ada-002`)
+  - Configurable dimensionality reduction for `text-embedding-3-*` models
+  - Automatic batch chunking for large inputs (configurable `MaxBatchSize`)
+  - Cosine similarity, Euclidean distance, and dot product computations
+  - Thread-safe in-memory vector index with k-nearest-neighbor search
+  - Multiple search metrics: cosine, Euclidean, dot product
+  - Metadata storage per vector for document retrieval pipelines
+  - Vector validation (NaN, Inf, dimension checks)
+  - Result normalization to unit vectors
+  - Custom HTTP client and OpenAI-compatible API base URL support
+  - 43 tests and 8 benchmarks (2.9μs cosine@1536d, 3.4ms search@1000 vectors)
+
 - **Async Batch Request Support** (`batch/`)
   - Concurrent execution of multiple LLM requests with configurable parallelism
   - Semaphore-based concurrency control (`MaxConcurrency`)

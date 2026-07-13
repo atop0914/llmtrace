@@ -36,6 +36,7 @@ LLMTrace wraps LLM client calls with OpenTelemetry spans, capturing token usage,
 - **Config hot-reload** — watch config file changes and apply without restart
 - **Provider load balancing** — distribute requests across multiple instances with round-robin, least-latency, random, or weighted strategies
 - **Streaming metrics** — track TTFT, inter-chunk latency percentiles, and tokens-per-second for streaming responses
+- **Text embeddings** — generate vector embeddings via OpenAI API with batch chunking, similarity search, and an in-memory vector index for RAG pipelines
 
 ## Installation
 
@@ -1360,6 +1361,7 @@ llmtrace/
 +-- metrics/                # Prometheus-compatible metrics
 +-- dashboard/              # Web dashboard (API + static UI)
 +-- eval/                   # Evaluation framework
++-- embedding/              # Text embeddings & vector similarity search
 +-- guardrails/             # Input/output validation rules
 +-- tokencount/             # Token estimation & context window management
 +-- prompt/                 # Versioned prompt templates
