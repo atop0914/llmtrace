@@ -63,13 +63,13 @@ type Endpoint struct {
 	Provider llmtrace.Provider
 	Weight   int // Used by Weighted strategy; 0 means equal weight
 
-	mu           sync.RWMutex
-	healthy      bool
-	avgLatency   time.Duration
-	totalCalls   int64
-	totalErrors  int64
-	lastError    time.Time
-	lastSuccess  time.Time
+	mu               sync.RWMutex
+	healthy          bool
+	avgLatency       time.Duration
+	totalCalls       int64
+	totalErrors      int64
+	lastError        time.Time
+	lastSuccess      time.Time
 	consecutiveFails int
 }
 
@@ -103,13 +103,13 @@ func (e *Endpoint) Stats() EndpointStats {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	return EndpointStats{
-		Name:         e.Name,
-		Healthy:      e.healthy,
-		AvgLatency:   e.avgLatency,
-		TotalCalls:   e.totalCalls,
-		TotalErrors:  e.totalErrors,
-		ErrorRate:    e.errorRate(),
-		Weight:       e.Weight,
+		Name:        e.Name,
+		Healthy:     e.healthy,
+		AvgLatency:  e.avgLatency,
+		TotalCalls:  e.totalCalls,
+		TotalErrors: e.totalErrors,
+		ErrorRate:   e.errorRate(),
+		Weight:      e.Weight,
 	}
 }
 
@@ -155,14 +155,6 @@ func (e *Endpoint) recordError() {
 	if e.consecutiveFails >= 3 {
 		e.healthy = false
 	}
-}
-
-// markHealthy manually marks the endpoint as healthy (for recovery probes).
-func (e *Endpoint) markHealthy() {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	e.healthy = true
-	e.consecutiveFails = 0
 }
 
 // EndpointStats holds statistics for an endpoint.

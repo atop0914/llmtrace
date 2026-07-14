@@ -5,6 +5,54 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Documentation & examples update**
+  - Added example programs for distributed tracing propagation and LLM-as-judge evaluation
+  - Expanded README examples table to cover all 13 example programs
+  - Added README sections for Batch Requests, Distributed Tracing, Semantic Caching, Text Embeddings
+  - Updated project structure tree with all packages
+
+## [2.3.0] - 2026-07-14
+
+### Added
+- **Text Embedding Package** (`embedding/`)
+  - `Provider` interface for generating vector embeddings from text
+  - OpenAI Embeddings API implementation (`text-embedding-3-small/large`, `text-embedding-ada-002`)
+  - Configurable dimensionality reduction for `text-embedding-3-*` models
+  - Automatic batch chunking for large inputs (configurable `MaxBatchSize`)
+  - Cosine similarity, Euclidean distance, and dot product computations
+  - Thread-safe in-memory vector index with k-nearest-neighbor search
+  - Multiple search metrics: cosine, Euclidean, dot product
+  - Metadata storage per vector for document retrieval pipelines
+  - Vector validation (NaN, Inf, dimension checks)
+  - Result normalization to unit vectors
+  - Custom HTTP client and OpenAI-compatible API base URL support
+  - 43 tests and 8 benchmarks (2.9μs cosine@1536d, 3.4ms search@1000 vectors)
+
+- **Async Batch Request Support** (`batch/`)
+  - Concurrent execution of multiple LLM requests with configurable parallelism
+  - Semaphore-based concurrency control (`MaxConcurrency`)
+  - Per-item and overall batch timeouts
+  - Error handling strategies: continue on failure or cancel entire batch
+  - Aggregate metrics: total tokens, input/output breakdown, latency stats (min/avg/max)
+  - Per-item progress callbacks for real-time monitoring
+  - Metadata passthrough from batch items to results
+  - Order-preserving results despite concurrent execution
+  - Context cancellation propagation to all in-flight requests
+  - Implements `llmtrace.Provider` integration via `Complete` method
+  - 16 tests and 4 benchmarks (~14μs/10req, ~62μs/50req, ~123μs/100req)
+
+- **Distributed Tracing Propagation** (`propagation/`)
+  - W3C Trace Context standard implementation (`traceparent` + `tracestate` headers)
+  - Carrier abstraction for HTTP headers, gRPC metadata, or custom transports
+  - `Extract()` / `Inject()` for trace context propagation across service boundaries
+  - `MapCarrier` for testing, `HTTPCarrier` for HTTP integration
+  - Server-side `Middleware()` extracts trace context from incoming requests
+  - Client-side `ClientMiddleware()` injects trace context into outgoing requests
+  - Context helpers: `ContextWithSpanContext()` / `SpanContextFromContext()`
+  - `FormatTraceParent()` for manual traceparent construction
+  - Full tracestate round-trip preservation (vendor-specific key-value pairs)
+  - 28 tests and 4 benchmarks (~310ns parse, ~490ns inject, ~790ns extract)
+
 - **Provider Load Balancer** (`loadbalancer/`)
   - Distribute LLM requests across multiple provider instances
   - 4 strategies: RoundRobin, LeastLatency, Random, Weighted
@@ -14,6 +62,16 @@ All notable changes to this project will be documented in this file.
   - Thread-safe concurrent access with atomic counters
   - Implements `llmtrace.Provider` interface for seamless integration
   - 24 tests and 6 benchmarks
+
+- **Streaming Metrics** (`streammetric/`)
+  - Real-time performance metrics for streaming LLM responses
+  - Time to First Token (TTFT) measurement
+  - Inter-chunk latency tracking with P50/P99 percentiles
+  - Tokens per second (TPS) throughput calculation
+  - Live monitoring via `TTFT()` and `ChunkCount()` methods
+  - `WithStreamMetrics()` StreamMiddleware for automatic per-call collection
+  - Thread-safe with atomic operations for concurrent access
+  - 16 tests and 4 benchmarks (137ns per record, zero allocs)
 
 ## [2.2.0] - 2026-07-05
 
