@@ -666,6 +666,15 @@ See the [examples/](examples/) directory:
 | [dashboard](examples/dashboard/) | Web dashboard with real-time metrics |
 | [middleware](examples/middleware/) | Middleware chain with retry, rate limit, logging |
 | [streaming](examples/streaming/) | Streaming responses with error handling |
+| [streammetric](examples/streammetric/) | Streaming performance metrics (TTFT, ICL, TPS) |
+| [batch](examples/batch/) | Async batch request execution with concurrency control |
+| [embedding](examples/embedding/) | Text embeddings and vector similarity search |
+| [propagation](examples/propagation/) | W3C Trace Context distributed tracing propagation |
+| [judge](examples/judge/) | LLM-as-judge evaluation framework |
+| [semcache](examples/semcache/) | Semantic caching with embedding similarity |
+| [tokencount](examples/tokencount/) | Token estimation, context window management, cost comparison |
+| [prompt](examples/prompt/) | Versioned prompt templates with A/B testing |
+| [session](examples/session/) | Multi-turn conversation session tracking |
 
 Run an example:
 
@@ -681,7 +690,167 @@ go run ./examples/middleware
 
 # Streaming demo
 go run ./examples/streaming
+
+# Streaming metrics
+go run ./examples/streammetric
+
+# Batch requests
+go run ./examples/batch
+
+# Text embeddings
+go run ./examples/embedding
+
+# Distributed tracing propagation
+go run ./examples/propagation
+
+# LLM-as-judge evaluation
+go run ./examples/judge
+
+# Semantic caching
+go run ./examples/semcache
 ```
+
+## Batch Requests
+
+Execute multiple LLM requests concurrently with configurable parallelism:
+
+```go
+import "github.com/atop0914/llmtrace/batch"
+
+// Create a batch executor
+executor := batch.New(provider,
+    batch.WithMaxConcurrency(5),
+    batch.WithContinueOnError(true),  // don't stop on individual failures
+    batch.WithTimeout(60 * time.Second),
+    batch.WithOnProgress(func(info batch.ProgressInfo) {
+        log.Printf("Progress: %d/%d completed", info.Completed, info.Total)
+    }),
+)
+
+// Add requests
+executor.Add(batch.Item{ID: "q1", Request: &llmtrace.Request{Model: "gpt-4o", Messages: []llmtrace.Message{{Role: "user", Content: "What is Go?"}}}})
+executor.Add(batch.Item{ID: "q2", Request: &llmtrace.Request{Model: "gpt-4o", Messages: []llmtrace.Message{{Role: "user", Content: "What is Rust?"}}}})
+
+// Execute all requests concurrently
+results, err := executor.Execute(ctx)
+
+// Check aggregate metrics
+fmt.Printf("Total tokens: %d, Avg latency: %v\n",
+    results.Metrics.TotalTokens, results.Metrics.AvgLatency)
+
+for _, r := range results.Items {
+    if r.Error != nil {
+        log.Printf("  %s: ERROR %v", r.ID, r.Error)
+    } else {
+        log.Printf("  %s: %s (tokens: %d)", r.ID, r.Response.Content[:50], r.Response.Usage.TotalTokens)
+    }
+}
+```
+
+## Distributed Tracing Propagation
+
+Propagate trace context across service boundaries using W3C Trace Context:
+
+```go
+import "github.com/atop0914/llmtrace/propagation"
+
+prop := propagation.New()
+
+// Server side: extract incoming trace context from HTTP headers
+downstreamHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+    spanCtx, ok := propagation.SpanContextFromContext(r.Context())
+    if ok {
+        log.Printf("Received trace: %s", spanCtx.TraceID())
+    }
+})
+http.Handle("/api", propagation.Middleware(prop)(downstreamHandler))
+
+// Client side: inject trace context into outgoing requests
+client := &http.Client{
+    Transport: propagation.ClientMiddleware(prop)(http.DefaultTransport),
+}
+
+// Set trace context in Go context
+spanCtx := trace.NewSpanContext(trace.SpanContextConfig{
+    TraceID:    traceID,
+    SpanID:     spanID,
+    TraceFlags: trace.FlagsSampled,
+})
+ctx := propagation.ContextWithSpanContext(context.Background(), spanCtx)
+
+req, _ := http.NewRequestWithContext(ctx, "GET", "http://downstream/api", nil)
+resp, _ := client.Do(req)
+```
+
+**Supported carriers:**
+- `HTTPCarrier` — HTTP headers (via `InjectIntoHTTP` / `ExtractFromHTTP`)
+- `MapCarrier` — generic key-value map (for gRPC metadata, custom transports)
+
+## Semantic Caching
+
+Cache LLM responses based on semantic similarity rather than exact matches:
+
+```go
+import "github.com/atop0914/llmtrace/semcache"
+
+// Create a semantic cache with an embedding provider
+cache := semcache.New(
+    semcache.WithEmbeddingProvider(embeddingProvider),
+    semcache.WithSimilarityThreshold(0.92),  // cosine similarity threshold
+    semcache.WithMaxEntries(1000),
+    semcache.WithTTL(30 * time.Minute),
+)
+
+// Use as middleware — automatically caches and retrieves semantically similar responses
+resp, err := tracer.Chat(ctx, req, provider,
+    llmtrace.WithCallMiddleware(cache.Middleware()),
+)
+```
+
+**How it works:**
+1. Each request is converted to an embedding vector
+2. On cache hit (cosine similarity >= threshold), returns cached response without API call
+3. On cache miss, calls the LLM and stores the response with its embedding
+4. Supports TTL-based expiration and LRU eviction
+
+## Text Embeddings
+
+Generate vector embeddings for text with similarity search:
+
+```go
+import "github.com/atop0914/llmtrace/embedding"
+
+// Create an embedding provider
+provider := embedding.NewOpenAI(
+    embedding.WithAPIKey("sk-..."),
+    embedding.WithModel("text-embedding-3-small"),
+)
+
+// Generate embedding
+result, _ := provider.Embed(ctx, "The quick brown fox")
+fmt.Printf("Dimensions: %d, Tokens: %d\n", len(result.Vector), result.Usage.TotalTokens)
+
+// Build a vector index for similarity search
+index := embedding.NewIndex(embedding.WithMetric(embedding.Cosine))
+index.Add("doc1", result.Vector, map[string]string{"source": "example"})
+index.Add("doc2", result2.Vector, map[string]string{"source": "docs"})
+
+// Search for similar vectors
+results, _ := index.Search(queryVector, 5)  // top 5
+for _, r := range results {
+    fmt.Printf("  %s: similarity=%.4f\n", r.ID, r.Score)
+}
+
+// Batch embedding with automatic chunking
+texts := []string{"text1", "text2", /* ... hundreds of texts ... */}
+batchResults, _ := provider.EmbedBatch(ctx, texts)
+```
+
+**Features:**
+- Supports `text-embedding-3-small`, `text-embedding-3-large`, `text-embedding-ada-002`
+- Configurable dimensionality reduction for `text-embedding-3-*` models
+- Automatic batch chunking for large inputs (configurable `MaxBatchSize`)
+- Thread-safe in-memory vector index with cosine, Euclidean, and dot product metrics
 
 ## Structured Logging
 
@@ -1360,12 +1529,17 @@ llmtrace/
 |   +-- compat/
 +-- metrics/                # Prometheus-compatible metrics
 +-- dashboard/              # Web dashboard (API + static UI)
-+-- eval/                   # Evaluation framework
++-- eval/                   # Evaluation framework + LLM-as-judge
 +-- embedding/              # Text embeddings & vector similarity search
 +-- guardrails/             # Input/output validation rules
 +-- tokencount/             # Token estimation & context window management
 +-- prompt/                 # Versioned prompt templates
 +-- session/                # Multi-turn conversation tracking
++-- batch/                  # Async batch request execution
++-- propagation/            # W3C Trace Context distributed tracing
++-- semcache/               # Semantic caching with embedding similarity
++-- streammetric/           # Streaming metrics (TTFT, ICL, TPS)
++-- loadbalancer/           # Provider load balancing (4 strategies)
 +-- traceexport/            # Trace file export (JSON/CSV/rotate)
 +-- webhook/                # Webhook alert notifications
 +-- configwatch/            # Config file hot-reload
@@ -1375,6 +1549,12 @@ llmtrace/
 |   +-- dashboard/
 |   +-- middleware/
 |   +-- streaming/
+|   +-- streammetric/
+|   +-- batch/
+|   +-- embedding/
+|   +-- propagation/
+|   +-- judge/
+|   +-- semcache/
 |   +-- tokencount/
 |   +-- prompt/
 |   +-- session/
