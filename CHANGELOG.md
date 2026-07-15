@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-07-15
+
 ### Added
 - **Documentation & examples update**
   - Added example programs for distributed tracing propagation and LLM-as-judge evaluation
@@ -11,9 +13,6 @@ All notable changes to this project will be documented in this file.
   - Added README sections for Batch Requests, Distributed Tracing, Semantic Caching, Text Embeddings
   - Updated project structure tree with all packages
 
-## [2.3.0] - 2026-07-14
-
-### Added
 - **Text Embedding Package** (`embedding/`)
   - `Provider` interface for generating vector embeddings from text
   - OpenAI Embeddings API implementation (`text-embedding-3-small/large`, `text-embedding-ada-002`)
