@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **HTTP Framework Adapters** (`adapters/`)
+  - Standard `net/http` middleware with OpenTelemetry span creation per request
+  - Automatic request ID generation and propagation (`X-Request-ID` header)
+  - Response headers for timing (`X-Response-Time-Ms`), provider (`X-LLM-Provider`), and token usage (`X-Tokens-Used`)
+  - Panic recovery with structured JSON error responses
+  - Context-based request metadata access (`RequestDataFromContext`)
+  - Helper functions: `SetProvider`, `SetModel`, `SetTokensUsed` for in-handler metadata
+  - Configurable span naming via `SpanNameFunc`
+  - Compatible with any `http.Handler`-based framework (Gin, Echo, Chi, stdlib ServeMux)
+  - 16 tests covering ID generation, context propagation, OTel spans, panic recovery, and response headers
+
 ## [2.3.0] - 2026-07-15
 
 ### Added
