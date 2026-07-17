@@ -1,8 +1,15 @@
-[COMPLETE] 2周开发计划全部完成！
+[DONE] Day 50: HTTP Framework Adapters
 
-所有16天任务已完成：
-- 25个Go包，全部测试通过
-- CI/CD工作流（ci.yml + release.yml）
-- golangci-lint配置
-- CHANGELOG.md
-- go vet 无错误
+New package: adapters/ (4 files, 671 lines)
+
+Features:
+- net/http middleware with OpenTelemetry span creation
+- Automatic X-Request-ID generation and propagation
+- Response headers: X-Response-Time-Ms, X-LLM-Provider, X-Tokens-Used
+- Panic recovery with structured JSON errors
+- Context-based metadata (RequestDataFromContext, SetProvider, SetModel, SetTokensUsed)
+- Compatible with Gin, Echo, Chi, stdlib ServeMux
+- 16 tests, all passing
+
+Commit: 0356b0f (dev)
+Next: Day 51 - OpenAI-compatible local proxy server
