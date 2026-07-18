@@ -290,7 +290,7 @@ func (s *Server) handleComplete(w http.ResponseWriter, ctx context.Context, req 
 
 	apiResp := s.toAPIResponse(resp, req.Model)
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(apiResp)
+	_ = json.NewEncoder(w).Encode(apiResp)
 }
 
 // handleStream handles streaming requests using SSE.
@@ -392,13 +392,13 @@ func (s *Server) handleModels(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // handleHealth handles GET /health.
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
 // withAuth wraps a handler with API key authentication.
@@ -508,7 +508,7 @@ func (s *Server) toAPIResponse(resp *llmtrace.Response, reqModel string) *chatRe
 func (s *Server) writeError(w http.ResponseWriter, status int, errType, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(apiError{
+	_ = json.NewEncoder(w).Encode(apiError{
 		Error: struct {
 			Message string `json:"message"`
 			Type    string `json:"type"`
