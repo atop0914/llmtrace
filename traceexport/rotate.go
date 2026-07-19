@@ -156,7 +156,6 @@ func (e *RotateExporter) rotate() error {
 		}
 		exp, err = NewJSONExporter(path, opts...)
 	case "jsonl":
-		exp = NewJSONLWriterExporter(nil)
 		// For JSONL, open the file directly
 		f, ferr := os.Create(path)
 		if ferr != nil {
