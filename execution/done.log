@@ -15,3 +15,4 @@
 [2026-07-11] Day 15: LLM-as-judge评估框架
 [2026-07-12] Day 16: 评估框架lint修复 - 计划全部完成！
 [2026-07-13] Day 17: Embedding package — text embeddings, vector index, similarity search
+[2026-07-22] Day 18: Content moderation package — blocklist, regex, PII detection, input/output middleware
