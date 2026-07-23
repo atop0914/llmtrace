@@ -16,3 +16,13 @@
 [2026-07-12] Day 16: 评估框架lint修复 - 计划全部完成！
 [2026-07-13] Day 17: Embedding package — text embeddings, vector index, similarity search
 [2026-07-22] Day 18: Content moderation package — blocklist, regex, PII detection, input/output middleware
+
+[2026-07-23] Day 19 (v2.4.0): Documentation & examples update
+
+New examples: adapters/, moderation/
+README: added sections for adapters, moderation, proxy, healthcheck, correlation
+CHANGELOG: added all v2.4.0 features
+Project structure: updated with 5 new packages and 5 new examples
+
+Commits: 8347801, b9b9306 (dev)
+Next: Day 20 (v2.4.0) - Release preparation

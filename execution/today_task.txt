@@ -1,15 +1,5 @@
-[DONE] Day 50: HTTP Framework Adapters
-
-New package: adapters/ (4 files, 671 lines)
-
-Features:
-- net/http middleware with OpenTelemetry span creation
-- Automatic X-Request-ID generation and propagation
-- Response headers: X-Response-Time-Ms, X-LLM-Provider, X-Tokens-Used
-- Panic recovery with structured JSON errors
-- Context-based metadata (RequestDataFromContext, SetProvider, SetModel, SetTokensUsed)
-- Compatible with Gin, Echo, Chi, stdlib ServeMux
-- 16 tests, all passing
-
-Commit: 0356b0f (dev)
-Next: Day 51 - OpenAI-compatible local proxy server
+Day 56: v2.4.0 Release preparation
+- Run full test suite (go test -short ./...)
+- Fix any lint issues (golangci-lint run)
+- Verify all examples compile
+- Tag and release v2.4.0
