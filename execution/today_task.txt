@@ -1,5 +1,5 @@
-Day 56: v2.4.0 Release preparation
-- Run full test suite (go test -short ./...)
-- Fix any lint issues (golangci-lint run)
-- Verify all examples compile
-- Tag and release v2.4.0
+Day 20: v2.4.0 Release - DONE
+- Updated CHANGELOG
+- Merged dev -> main
+- Tagged v2.4.0
+- Pushed to GitHub

@@ -26,3 +26,15 @@ Project structure: updated with 5 new packages and 5 new examples
 
 Commits: 8347801, b9b9306 (dev)
 Next: Day 20 (v2.4.0) - Release preparation
+
+[2026-07-24] Day 20 (v2.4.0): Release preparation
+
+- All tests pass in -short mode (31 packages)
+- go vet clean
+- CHANGELOG: moved Unreleased to v2.4.0
+- Merged dev into main
+- Tagged and pushed v2.4.0
+- GitHub Release auto-created via release.yml workflow
+
+Tag: v2.4.0 (2c4ba9f)
+Next: Day 21 — start new development cycle
