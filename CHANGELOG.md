@@ -4,6 +4,63 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+(nothing yet)
+
+## [2.4.0] - 2026-07-24
+
+### Added
+- **Content Moderation** (`moderation/`)
+  - Word/phrase blocklist matching (case-sensitive or insensitive)
+  - Regex pattern matching with configurable actions
+  - PII detection (emails, phone numbers, SSNs, credit card numbers)
+  - Configurable actions: block, redact, or log
+  - Severity levels: low, medium, high, critical
+  - Input and output middleware for LLM request/response filtering
+  - Content length limits for input and output separately
+  - Redaction with configurable placeholder text
+  - Context-aware with cancellation support
+  - 30 tests covering all rule types, middleware, and edge cases
+
+- **OpenAI-Compatible Local Proxy** (`proxy/`)
+  - Accepts requests in OpenAI API format (`/v1/chat/completions`, `/v1/models`)
+  - Routes to multiple LLM providers based on model name prefix
+  - Full streaming support (SSE) with chunk-by-chunk forwarding
+  - Built-in API key authentication
+  - Health check endpoint (`/health`)
+  - Integrated with LLMTrace for full observability (tracing, metrics, logging)
+  - Model listing with per-provider model aggregation
+
+- **JSON Lines Trace Export** (`traceexport/jsonl.go`)
+  - Append-friendly format (one JSON object per line)
+  - Unix tool compatibility (`grep`, `jq`, `wc -l`, `tail -f`)
+  - Streaming-ready: each record is immediately complete
+  - Integration with data pipelines (BigQuery, Snowflake, Elasticsearch)
+
+- **Health Check & Readiness Probes** (`healthcheck/`)
+  - Kubernetes-style `/healthz` (liveness) and `/readyz` (readiness) endpoints
+  - Pluggable readiness check functions (database, cache, external API)
+  - Per-check timeout with context cancellation
+  - Aggregate status reporting (all checks must pass)
+  - Uptime tracking since process start
+
+- **Request/Response Correlation IDs** (`correlation/`)
+  - Automatic `X-Request-ID` generation or extraction from incoming requests
+  - Downstream propagation to outgoing HTTP calls
+  - Context-based ID access (`IDFromContext`)
+  - Configurable header name and ID generator
+  - Works as standard `net/http` middleware
+
+- **HTTP Framework Adapters** (`adapters/`)
+  - Standard `net/http` middleware with OpenTelemetry span creation per request
+  - Automatic request ID generation and propagation (`X-Request-ID` header)
+  - Response headers for timing (`X-Response-Time-Ms`), provider (`X-LLM-Provider`), and token usage (`X-Tokens-Used`)
+  - Panic recovery with structured JSON error responses
+  - Context-based request metadata access (`RequestDataFromContext`)
+  - Helper functions: `SetProvider`, `SetModel`, `SetTokensUsed` for in-handler metadata
+  - Configurable span naming via `SpanNameFunc`
+  - Compatible with any `http.Handler`-based framework (Gin, Echo, Chi, stdlib ServeMux)
+  - 16 tests covering ID generation, context propagation, OTel spans, panic recovery, and response headers
+
 ## [2.3.0] - 2026-07-15
 
 ### Added

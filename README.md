@@ -37,6 +37,11 @@ LLMTrace wraps LLM client calls with OpenTelemetry spans, capturing token usage,
 - **Provider load balancing** — distribute requests across multiple instances with round-robin, least-latency, random, or weighted strategies
 - **Streaming metrics** — track TTFT, inter-chunk latency percentiles, and tokens-per-second for streaming responses
 - **Text embeddings** — generate vector embeddings via OpenAI API with batch chunking, similarity search, and an in-memory vector index for RAG pipelines
+- **Content moderation** — blocklist, regex, and PII detection with input/output middleware
+- **HTTP framework adapters** — `net/http` middleware with OTel spans, request IDs, and response metadata headers
+- **Local proxy server** — OpenAI-compatible proxy with multi-provider routing and full observability
+- **Health checks** — Kubernetes-style liveness and readiness probes with pluggable checks
+- **Correlation IDs** — automatic request ID propagation across HTTP boundaries
 
 ## Installation
 
@@ -675,6 +680,11 @@ See the [examples/](examples/) directory:
 | [tokencount](examples/tokencount/) | Token estimation, context window management, cost comparison |
 | [prompt](examples/prompt/) | Versioned prompt templates with A/B testing |
 | [session](examples/session/) | Multi-turn conversation session tracking |
+| [proxy](examples/proxy/) | OpenAI-compatible local proxy server with multi-provider routing |
+| [healthcheck](examples/healthcheck/) | Kubernetes-style liveness and readiness probes |
+| [correlation](examples/correlation/) | Request/response correlation ID propagation |
+| [adapters](examples/adapters/) | HTTP framework adapters with OTel tracing and response headers |
+| [moderation](examples/moderation/) | Content moderation with blocklists, PII detection, and regex rules |
 
 Run an example:
 
@@ -708,6 +718,21 @@ go run ./examples/judge
 
 # Semantic caching
 go run ./examples/semcache
+
+# OpenAI-compatible proxy
+go run ./examples/proxy
+
+# Health check & readiness probes
+go run ./examples/healthcheck
+
+# Correlation ID middleware
+go run ./examples/correlation
+
+# HTTP framework adapters
+go run ./examples/adapters
+
+# Content moderation
+go run ./examples/moderation
 ```
 
 ## Batch Requests
@@ -1228,6 +1253,213 @@ counter.Reset()
 - **Middleware integration** — Works seamlessly with the existing middleware chain
 - **Thread-safe** — Safe for concurrent use in production environments
 
+## HTTP Framework Adapters
+
+Standard `net/http` middleware for integrating LLMTrace into any Go web application. Works with Gin, Echo, Chi, and stdlib ServeMux.
+
+```go
+import "github.com/atop0914/llmtrace/adapters"
+
+// Create middleware with defaults (OTel spans, request IDs, response headers)
+mw := adapters.Middleware(adapters.DefaultConfig())
+
+mux := http.NewServeMux()
+mux.HandleFunc("POST /v1/chat", func(w http.ResponseWriter, r *http.Request) {
+    // Access request metadata
+    data := adapters.RequestDataFromContext(r.Context())
+    log.Printf("[%s] request received", data.RequestID)
+
+    // Set LLM-specific metadata (appears in response headers)
+    adapters.SetProvider(r.Context(), "openai")
+    adapters.SetModel(r.Context(), "gpt-4o")
+    adapters.SetTokensUsed(r.Context(), 150)
+
+    w.Write([]byte(`{"response":"hello"}`))
+})
+
+http.ListenAndServe(":8080", mw(mux))
+```
+
+**Response headers added automatically:**
+
+| Header | Description |
+|--------|-------------|
+| `X-Request-ID` | Unique correlation ID for request tracing |
+| `X-Response-Time-Ms` | Request processing duration |
+| `X-LLM-Provider` | LLM provider name (set via `SetProvider`) |
+| `X-Tokens-Used` | Total tokens consumed |
+
+**Configuration options:**
+
+```go
+adapters.Config{
+    TracerName:         "my-service",   // OTel instrumentation name
+    GenerateRequestID:  true,           // Auto-generate X-Request-ID
+    AddResponseHeaders: true,           // Add timing/token headers
+    RecoverFromPanic:   true,           // Catch panics → 500 JSON error
+    SpanNameFunc: func(r *http.Request) string { // Custom span naming
+        return r.Method + " " + r.URL.Path
+    },
+}
+```
+
+## Content Moderation
+
+Real-time content filtering for LLM inputs and outputs with blocklists, regex patterns, and PII detection.
+
+```go
+import "github.com/atop0914/llmtrace/moderation"
+
+engine := moderation.New(moderation.DefaultConfig())
+
+// Block specific words/phrases
+engine.AddRule(moderation.NewWordBlocklist(
+    "profanity", []string{"spam", "scam"},
+    moderation.ActionBlock, moderation.SeverityHigh, false,
+))
+
+// Detect and redact PII (emails, phones, SSNs, credit cards)
+engine.AddRule(moderation.NewPIIDetector(
+    moderation.ActionRedact, moderation.SeverityMedium,
+))
+
+// Custom regex rule
+engine.AddRule(moderation.NewRegexRule(
+    "url_detector", "Detects URLs",
+    regexp.MustCompile(`https?://[^\s]+`),
+    moderation.ActionLog, moderation.SeverityLow,
+))
+
+// Check content
+result, _ := engine.CheckInput(ctx, userInput)
+if !result.Allowed {
+    log.Printf("blocked: %d matches", len(result.Matches))
+}
+```
+
+**Built-in rule constructors:**
+
+| Constructor | Description |
+|------------|-------------|
+| `NewWordBlocklist` | Word/phrase matching (case-sensitive or insensitive) |
+| `NewRegexRule` | Regex pattern matching |
+| `NewPIIDetector` | Emails, phone numbers, SSNs, credit card numbers |
+| `NewMaxLengthRule` | Content byte length limit |
+
+**Actions:** `ActionBlock` (reject), `ActionRedact` (replace with placeholder), `ActionLog` (record only)
+
+**LLM middleware integration:**
+
+```go
+// Block harmful input before it reaches the LLM
+tracer.Use(moderation.Middleware(engine))
+
+// Filter/redact LLM output
+tracer.Use(moderation.OutputMiddleware(engine))
+
+// Check if an error was caused by moderation
+if moderation.IsBlocked(err) {
+    // Handle blocked content
+}
+```
+
+## OpenAI-Compatible Local Proxy
+
+Run a local proxy server that accepts OpenAI API format requests and routes them through LLMTrace providers with full observability.
+
+```go
+import "github.com/atop0914/llmtrace/proxy"
+
+srv := proxy.New(proxy.Config{
+    Listen: ":8080",
+    Providers: map[string]proxy.ProviderEntry{
+        "gpt": {
+            Provider: openai.New(openai.WithAPIKey("sk-...")),
+            Default:  true,
+        },
+        "claude": {
+            Provider: anthropic.New(anthropic.WithAPIKey("sk-ant-...")),
+        },
+    },
+    Tracer: llmtrace.NewTracer("llmtrace-proxy"),
+    APIKey: "my-proxy-key", // Clients authenticate with this
+})
+srv.ListenAndServe()
+```
+
+**Endpoints:**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/v1/chat/completions` | Chat completions (streaming & non-streaming) |
+| `GET` | `/v1/models` | List available models across all providers |
+| `GET` | `/health` | Health check (no auth required) |
+
+**Usage with any OpenAI-compatible client:**
+
+```bash
+curl http://localhost:8080/v1/chat/completions \
+  -H "Authorization: Bearer my-proxy-key" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"Hello!"}]}'
+```
+
+## Health Check & Readiness Probes
+
+Kubernetes-style liveness and readiness endpoints for production deployments.
+
+```go
+import "github.com/atop0914/llmtrace/healthcheck"
+
+hc := healthcheck.New(healthcheck.Config{
+    Timeout:         3 * time.Second,
+    AggregateStatus: true,
+})
+
+// Register readiness checks
+hc.AddReadinessCheck("database", func(ctx context.Context) error {
+    return db.PingContext(ctx)
+})
+hc.AddReadinessCheck("redis", func(ctx context.Context) error {
+    return redisClient.Ping(ctx).Err()
+})
+
+mux := http.NewServeMux()
+mux.HandleFunc("/healthz", hc.LiveHandler)   // Liveness: always 200
+mux.HandleFunc("/readyz", hc.ReadyHandler)   // Readiness: 200 only when all checks pass
+```
+
+**Features:**
+- Per-check timeout with context cancellation
+- Aggregate status (all checks must pass for 200)
+- Uptime tracking (`hc.Uptime()`)
+- Pluggable check functions for any dependency
+
+## Request/Response Correlation IDs
+
+Propagate correlation IDs across HTTP requests for distributed tracing.
+
+```go
+import "github.com/atop0914/llmtrace/correlation"
+
+corr := correlation.New(correlation.DefaultConfig())
+
+handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+    id := correlation.IDFromContext(r.Context())
+    log.Printf("[%s] processing request", id)
+    // ID is automatically added to response headers
+})
+
+http.ListenAndServe(":8080", corr.Middleware(handler))
+```
+
+**Features:**
+- Auto-generates `X-Request-ID` if not present in request
+- Extracts existing ID from incoming headers
+- Adds ID to response headers for client-side correlation
+- Context-based access via `IDFromContext()`
+- Configurable header name and ID generator
+
 ## Webhook Alerts
 
 Send alert notifications via webhooks when thresholds are exceeded:
@@ -1527,6 +1759,11 @@ llmtrace/
 |   +-- ollama/
 |   +-- azure/
 |   +-- compat/
++-- adapters/               # HTTP framework adapters (net/http, gin, echo, chi)
++-- correlation/            # Request/response correlation ID middleware
++-- healthcheck/            # Liveness & readiness probes (K8s-style)
++-- moderation/             # Content moderation (blocklist, PII, regex)
++-- proxy/                  # OpenAI-compatible local proxy server
 +-- metrics/                # Prometheus-compatible metrics
 +-- dashboard/              # Web dashboard (API + static UI)
 +-- eval/                   # Evaluation framework + LLM-as-judge
@@ -1540,7 +1777,7 @@ llmtrace/
 +-- semcache/               # Semantic caching with embedding similarity
 +-- streammetric/           # Streaming metrics (TTFT, ICL, TPS)
 +-- loadbalancer/           # Provider load balancing (4 strategies)
-+-- traceexport/            # Trace file export (JSON/CSV/rotate)
++-- traceexport/            # Trace file export (JSON/CSV/JSONL/rotate)
 +-- webhook/                # Webhook alert notifications
 +-- configwatch/            # Config file hot-reload
 +-- tokenreport/            # Token usage aggregation
@@ -1558,6 +1795,11 @@ llmtrace/
 |   +-- tokencount/
 |   +-- prompt/
 |   +-- session/
+|   +-- proxy/
+|   +-- healthcheck/
+|   +-- correlation/
+|   +-- adapters/
+|   +-- moderation/
 +-- .github/workflows/      # CI/CD
 ```
 

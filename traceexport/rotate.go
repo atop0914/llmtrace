@@ -70,7 +70,7 @@ func NewRotateExporter(cfg RotateConfig) (*RotateExporter, error) {
 	if cfg.Format == "" {
 		cfg.Format = "json"
 	}
-	if cfg.Format != "json" && cfg.Format != "csv" {
+	if cfg.Format != "json" && cfg.Format != "csv" && cfg.Format != "jsonl" {
 		return nil, fmt.Errorf("traceexport: unsupported format %q", cfg.Format)
 	}
 	if cfg.MaxSize == 0 {
@@ -155,6 +155,19 @@ func (e *RotateExporter) rotate() error {
 			opts = append(opts, WithIndent())
 		}
 		exp, err = NewJSONExporter(path, opts...)
+	case "jsonl":
+		// For JSONL, open the file directly
+		f, ferr := os.Create(path)
+		if ferr != nil {
+			return fmt.Errorf("traceexport: create jsonl file: %w", ferr)
+		}
+		exp = NewJSONLWriterExporter(f)
+		// We need to track the file for closing
+		e.current = exp
+		e.currentPath = path
+		e.createdAt = time.Now()
+		go e.cleanup()
+		return nil
 	case "csv":
 		exp, err = NewCSVExporter(path, WithCSVHeader())
 	default:
