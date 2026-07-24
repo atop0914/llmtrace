@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+(nothing yet)
+
+## [2.4.0] - 2026-07-24
+
 ### Added
 - **Content Moderation** (`moderation/`)
   - Word/phrase blocklist matching (case-sensitive or insensitive)
