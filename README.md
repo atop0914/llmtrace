@@ -685,6 +685,7 @@ See the [examples/](examples/) directory:
 | [correlation](examples/correlation/) | Request/response correlation ID propagation |
 | [adapters](examples/adapters/) | HTTP framework adapters with OTel tracing and response headers |
 | [moderation](examples/moderation/) | Content moderation with blocklists, PII detection, and regex rules |
+| [usage](examples/usage/) | Usage analytics with cost breakdowns, trend detection, and anomaly detection |
 
 Run an example:
 
@@ -1781,6 +1782,7 @@ llmtrace/
 +-- webhook/                # Webhook alert notifications
 +-- configwatch/            # Config file hot-reload
 +-- tokenreport/            # Token usage aggregation
++-- usage/                  # Usage analytics (cost breakdowns, trends, anomalies)
 +-- examples/               # Example programs
 |   +-- basic/
 |   +-- dashboard/
@@ -1800,6 +1802,7 @@ llmtrace/
 |   +-- correlation/
 |   +-- adapters/
 |   +-- moderation/
+|   +-- usage/
 +-- .github/workflows/      # CI/CD
 ```
 
