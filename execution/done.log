@@ -38,3 +38,18 @@ Next: Day 20 (v2.4.0) - Release preparation
 
 Tag: v2.4.0 (2c4ba9f)
 Next: Day 21 — start new development cycle
+
+[2026-07-26] Day 21 (v2.5.0): Usage analytics package — cost breakdowns, trend detection, anomaly detection
+
+New package: usage/
+- Tracker aggregates usage records by provider/model with configurable time windows
+- Report provides cost breakdown, top-N models, per-provider aggregation
+- DetectTrend uses linear regression to identify increasing/decreasing cost patterns
+- DetectAnomalies uses z-score to flag unusual cost spikes
+- SuggestOptimizations generates actionable cost-saving recommendations (high cost, high input tokens, high latency, low utilization)
+- EstimateCost helper for model pricing calculations
+- 22 tests and 5 benchmarks (1.2μs Record, 112μs Report@1000 records)
+- Example program demonstrating full analytics workflow
+
+Commits: c0557ff (dev)
+Next: Day 22 — continue v2.5.0 development
