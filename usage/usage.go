@@ -55,16 +55,16 @@ type Config struct {
 
 // Record represents a single LLM call's usage data.
 type Record struct {
-	Provider   string
-	Model      string
-	InputTok   int
-	OutputTok  int
-	Cost       float64
-	Latency    time.Duration
-	Timestamp  time.Time
-	Endpoint   string // e.g., "/v1/chat/completions"
-	UserID     string // optional user identifier
-	Metadata   map[string]string
+	Provider  string
+	Model     string
+	InputTok  int
+	OutputTok int
+	Cost      float64
+	Latency   time.Duration
+	Timestamp time.Time
+	Endpoint  string // e.g., "/v1/chat/completions"
+	UserID    string // optional user identifier
+	Metadata  map[string]string
 }
 
 // Key returns the aggregation key for this record.
@@ -238,32 +238,32 @@ func (t *Tracker) Report() Report {
 
 // Report contains aggregated usage analytics.
 type Report struct {
-	GeneratedAt      time.Time
-	TotalCalls       int
-	TotalInputTokens int64
+	GeneratedAt       time.Time
+	TotalCalls        int
+	TotalInputTokens  int64
 	TotalOutputTokens int64
-	TotalCost        float64
-	AvgCostPerCall   float64
-	TotalLatency     time.Duration
-	AvgLatency       time.Duration
-	Models           []ModelUsage
-	Providers        []ProviderUsage
+	TotalCost         float64
+	AvgCostPerCall    float64
+	TotalLatency      time.Duration
+	AvgLatency        time.Duration
+	Models            []ModelUsage
+	Providers         []ProviderUsage
 }
 
 // ModelUsage contains usage stats for a specific model.
 type ModelUsage struct {
-	Provider      string
-	Model         string
-	Calls         int
-	InputTokens   int64
-	OutputTokens  int64
-	TotalTokens   int64
-	TotalCost     float64
+	Provider       string
+	Model          string
+	Calls          int
+	InputTokens    int64
+	OutputTokens   int64
+	TotalTokens    int64
+	TotalCost      float64
 	AvgCostPerCall float64
-	TotalLatency  time.Duration
-	AvgLatency    time.Duration
-	MinLatency    time.Duration
-	MaxLatency    time.Duration
+	TotalLatency   time.Duration
+	AvgLatency     time.Duration
+	MinLatency     time.Duration
+	MaxLatency     time.Duration
 }
 
 // ProviderUsage contains usage stats for a provider.

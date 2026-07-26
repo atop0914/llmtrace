@@ -85,12 +85,12 @@ func SuggestOptimizations(r Report, cfg CostOptimizationConfig) []Suggestion {
 		// High cost model
 		if m.TotalCost > cfg.HighCostThreshold {
 			suggestions = append(suggestions, Suggestion{
-				Type:            SuggestionHighCostModel,
-				Model:           m.Provider + "/" + m.Model,
-				CurrentCost:     m.TotalCost,
+				Type:             SuggestionHighCostModel,
+				Model:            m.Provider + "/" + m.Model,
+				CurrentCost:      m.TotalCost,
 				PotentialSavings: m.TotalCost * 0.5, // estimate 50% savings with cheaper model
-				Description:     "consider using a smaller model for non-critical requests",
-				Priority:        1,
+				Description:      "consider using a smaller model for non-critical requests",
+				Priority:         1,
 			})
 		}
 
@@ -99,12 +99,12 @@ func SuggestOptimizations(r Report, cfg CostOptimizationConfig) []Suggestion {
 			ratio := float64(m.InputTokens) / float64(m.OutputTokens)
 			if ratio > cfg.HighInputTokenRatio {
 				suggestions = append(suggestions, Suggestion{
-					Type:            SuggestionHighInputTokens,
-					Model:           m.Provider + "/" + m.Model,
-					CurrentCost:     m.TotalCost,
+					Type:             SuggestionHighInputTokens,
+					Model:            m.Provider + "/" + m.Model,
+					CurrentCost:      m.TotalCost,
 					PotentialSavings: m.TotalCost * (1.0 - 1.0/ratio) * 0.3,
-					Description:     "input tokens are %.1fx output tokens; consider prompt compression",
-					Priority:        2,
+					Description:      "input tokens are %.1fx output tokens; consider prompt compression",
+					Priority:         2,
 				})
 			}
 		}

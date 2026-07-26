@@ -31,12 +31,12 @@ func (t Trend) String() string {
 
 // TrendResult contains trend analysis results.
 type TrendResult struct {
-	Trend      Trend
-	Slope      float64       // cost per hour (or per window unit)
-	Confidence float64       // 0.0 - 1.0
-	CurrentAvg float64       // average cost in recent window
-	PreviousAvg float64      // average cost in previous window
-	ChangePercent float64    // percentage change
+	Trend         Trend
+	Slope         float64 // cost per hour (or per window unit)
+	Confidence    float64 // 0.0 - 1.0
+	CurrentAvg    float64 // average cost in recent window
+	PreviousAvg   float64 // average cost in previous window
+	ChangePercent float64 // percentage change
 }
 
 // DetectTrend analyzes cost trends over time using linear regression.
